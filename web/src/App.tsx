@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { Loading } from './components/ui';
 import { Attempt } from './pages/Attempt';
 import { ChallengeDetail } from './pages/ChallengeDetail';
+import { Home } from './pages/Home';
 import { Challenges } from './pages/Challenges';
 import { Labs } from './pages/Labs';
 import { Landing } from './pages/Landing';
@@ -25,7 +26,7 @@ export function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<Home />} />
         <Route path="/about" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/challenges" element={<Challenges />} />
