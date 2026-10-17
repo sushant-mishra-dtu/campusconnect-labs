@@ -70,8 +70,8 @@ await app.getByText(/min left/).waitFor({ timeout: 15000 });
 await shot(app, 'app-booked-on-iiitd-02');
 await shot(flow, 'platform-flow-after-booking');
 
-// Build, flash & examine, then watch the data move
-await app.getByRole('button', { name: /Build, flash & examine/ }).click();
+// "Build & simulate" on a sim node, "Build, flash & examine" on a board; then watch the data move
+await app.getByRole('button', { name: /^(Build & simulate|Build, flash & examine)$/ }).click();
 const started = Date.now();
 for (const at of [600, 1500, 2600, 3800]) {
   await app.waitForTimeout(Math.max(0, at - (Date.now() - started)));
