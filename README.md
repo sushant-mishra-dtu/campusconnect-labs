@@ -13,9 +13,11 @@ A professional network where people connect over what they have proven they can 
 
 There are no follow buttons. Every edge in the graph points to something that happened.
 
+> **No physical FPGA in this build.** We don't have an iCE40 board, so every lab node simulates one on a laptop. It builds the student's design into the real iCE40 UP5K bitstream, turns that bitstream back into Verilog, and runs the examiner testbench against it. Every proof says this in its signed payload (`"target":"bitstream"`) and on its badge (**Simulated, no physical FPGA**). Nothing here is labelled "Verified on silicon". See [docs/SIMULATION.md](docs/SIMULATION.md).
+
 ## Run it
 
-Needs Node 22.13+ (uses the built-in `node:sqlite`) and Icarus Verilog for the simulation lab node. On Windows, `iverilog` inside WSL is picked up automatically. yosys comes from npm as WebAssembly, so there's nothing to install for it.
+Needs Node 22.13+ (uses the built-in `node:sqlite`), Icarus Verilog and Python 3 for the simulation lab node. On Windows, `iverilog` inside WSL is picked up automatically. yosys, nextpnr-ice40 and icepack come from npm as WebAssembly, so there's nothing to install for them.
 
 ```bash
 npm install
@@ -30,8 +32,8 @@ Open http://localhost:5173 and pick a person. The seeded people are fictional an
 
 | Command | What it does |
 |---|---|
-| `npm run check:rtl` | every reference design must pass its testbench and every starter must fail, simulated as the synthesized iCE40 netlist a sim lab node runs (`-- --rtl` simulates the source) |
-| `npm run check:ice40` | every reference and starter must build to an iCE40 UP5K bitstream with the iCEBreaker pin map and meet 12 MHz (needs `nextpnr-ice40` and `icepack`, or `npm install --no-save @yowasp/nextpnr-ice40`) |
+| `npm run check:rtl` | every reference design must pass its testbench and every starter must fail, simulated as the iCE40 bitstream read back to Verilog, which is what a sim lab node runs (`-- --netlist` simulates yosys's netlist, `-- --rtl` the source) |
+| `npm run check:ice40` | every reference and starter must build to an iCE40 UP5K bitstream with the iCEBreaker pin map and meet 12 MHz (native `nextpnr-ice40`/`icepack` if installed, otherwise the WebAssembly builds from npm) |
 | `npm test -w server` | verdict verification (tampering, wrong key, stale nonce, replayed counter, expired booking, wrong examiner tier), node pairing and silicon enrollment, one proof connection per challenge, sign-in, booking limits |
 | `npm run admin -w server -- list` | operator commands: `enroll` an ESP32 examiner key as silicon, rotate a node `token`, `unpin` a node's examiner |
 | `npm run build && npm start` | production build served by the API server on :4000 |
@@ -57,20 +59,21 @@ People, companies and two of the colleges are fictional. The full walkthrough is
 | [`web/`](web) | Verilog editor with live console, labs and booking, profiles, proof page, network graph |
 | [`labnode/`](labnode) | Agent next to a lent board: yosys/nextpnr/iceprog (hardware) or yosys/iverilog (sim) |
 | [`examiner/`](examiner) | ESP32-S3 firmware that tests the FPGA pins and signs verdicts |
-| [`docs/`](docs) | [Architecture](docs/ARCHITECTURE.md) · [Verdict protocol](docs/PROTOCOL.md) · [Hardware wiring](docs/HARDWARE.md) · [Demo script](docs/DEMO.md) |
+| [`docs/`](docs) | [Architecture](docs/ARCHITECTURE.md) · [Verdict protocol](docs/PROTOCOL.md) · [Simulation, no FPGA](docs/SIMULATION.md) · [Hardware wiring](docs/HARDWARE.md) · [Demo script](docs/DEMO.md) |
 
 ## What is real today, and what isn't yet
 
 | Working | Not yet |
 |---|---|
-| Full loop in simulation: browser → booking check → lab node → yosys synthesis → iverilog examiner on the gate-level netlist → signed verdict → verification → badge, connection, referral | Flashing a board and running the ESP32 examiner on real pins |
-| Every challenge builds to an iCE40 UP5K bitstream that meets 12 MHz; the ESP32 firmware compiles | Flash/NVS encryption and secure boot on the ESP32 |
+| Full loop in simulation, no FPGA: browser → booking check → lab node → yosys → nextpnr → icepack → bitstream read back to Verilog → iverilog examiner → signed verdict → verification → badge, connection, referral | Any physical FPGA. We have no board, so no verdict is "Verified on silicon" |
+| Every challenge builds to an iCE40 UP5K bitstream that meets 12 MHz, and that same bitstream passes (reference) or fails (starter) its testbench | Flash/NVS encryption and secure boot on the ESP32 |
+| ESP32-S3 examiner firmware flashed to a real ESP32-S3: on-chip key, runs a test on its GPIOs, signs verdicts that verify | The ESP32 examining a real FPGA (nothing to wire it to) |
 | ECDSA P-256 signatures, nonce per attempt, monotonic counter, key pinning per node with a pairing window | College SSO and email verification (sign-in is email and password) |
-| Student code is only ever read by yosys compiled to WebAssembly, which can't see the lab node's files; the testbench runs against the synthesized netlist, so a design can't print its own verdict | An OS-level sandbox around iverilog and nextpnr (they see only yosys's netlist, never student source) |
+| Student code is only ever read by yosys compiled to WebAssembly, which can't see the lab node's files; the testbench runs against what was decoded from the bitstream, so a design can't print its own verdict | An OS-level sandbox around iverilog and icebox_vlog (they see only what was unpacked from the bitstream, never student source) |
 | In-browser re-verification of any proof with WebCrypto | Proof of key possession when a node connects (today the node token authenticates it) |
 | Skill-gap matching from proven skills only | |
 
-Proofs from the simulation examiner are labelled **Verified in simulation**. **Verified on silicon** needs an ESP32 examiner whose public key the platform operator enrolled for that node (`npm run admin -w server -- enroll`); what a node says about itself doesn't count.
+Proofs from the simulation examiner are labelled **Simulated, no physical FPGA**, and the proof page says what was simulated. **Verified on silicon** needs an ESP32 examiner whose public key the platform operator enrolled for that node (`npm run admin -w server -- enroll`); what a node says about itself doesn't count.
 
 ## Team
 

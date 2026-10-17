@@ -61,11 +61,11 @@ Network page. The new edges pulse: Aarav → Meera (proved_for), Ishaan → Aara
 
 ## Judge questions you'll get
 
-**"Isn't this just simulation?"** Today's demo uses the simulation examiner, and the UI says so ("Verified in simulation"). The ESP32-S3 firmware and the yosys → nextpnr → iceprog flow are in the repo (`examiner/`, `labnode/src/flows/ice40.ts`), with the wiring in `docs/HARDWARE.md`. Every challenge already builds to a real UP5K bitstream that meets timing (`npm run check:ice40`), and the firmware compiles. Switching a node to hardware is `--mode=hw --serial=…`.
+**"Isn't this just simulation?"** Yes, and it says so. We have no FPGA board, so the demo runs entirely on a laptop. Every proof is signed with `"target":"bitstream"` and labelled "Simulated, no physical FPGA". The simulation is as close to the chip as we can get without one: the design is placed, routed and packed into the real UP5K bitstream, and the testbench runs against that bitstream decoded back into Verilog (`docs/SIMULATION.md`). The ESP32-S3 examiner firmware is flashed on a real ESP32-S3 and signs verdicts on-chip. The yosys → nextpnr → iceprog flow and the wiring (`docs/HARDWARE.md`) are ready for when a board exists, and switching a node to hardware is `--mode=hw --serial=…`.
 
 **"Can the lab node cheat?"** With an ESP32 examiner, no: the node never has the key; it only relays what the ESP32 signs, and the platform pins the ESP32's public key. "Verified on silicon" needs that key to be enrolled by the platform operator, so a laptop that calls itself an ESP32 is turned away when it connects. With the sim examiner, the club running the node could, which is why those proofs are labelled differently.
 
-**"Can my design print `RESULT pass` itself?"** No. The sim examiner synthesizes the design first and runs the testbench against the netlist, which is only iCE40 primitives: no `$display`, no `final`, nothing that talks to the testbench except the pins. The testbench also tags its verdict line with a key only that run knows. Try `initial $display("RESULT pass");` on the starter: it's signed as a FAIL.
+**"Can my design print `RESULT pass` itself?"** No. The sim examiner builds the design to a bitstream first and runs the testbench against what it decodes from that bitstream, which is only iCE40 logic: no `$display`, no `final`, nothing that talks to the testbench except the pins. The testbench also tags its verdict line with a key only that run knows. Try `initial $display("RESULT pass");` on the starter: it's signed as a FAIL.
 
 **"Can my design read files on the lender's PC?"** No. yosys runs as WebAssembly with only your file in its filesystem, so `$readmemh("/etc/passwd", rom)` fails to build however it's spelled.
 

@@ -46,6 +46,10 @@ export function Landing() {
             Profiles are claims. Here, a connection only exists when a board in someone’s lab measured your design and signed the result.
             Claims on a profile don’t count.
           </p>
+          <p className="mt-3 max-w-xl text-sm text-muted">
+            In this demo no physical FPGA is attached. Each lab node simulates an iCE40 board on a laptop, and every proof says so in its signed
+            payload and on its badge.
+          </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link to="/login" className="inline-flex h-11 items-center gap-2 rounded-lg bg-ink px-5 text-sm font-medium text-white hover:bg-ink-2">
               Try the demo <ArrowIcon className="h-4 w-4" />

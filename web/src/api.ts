@@ -96,6 +96,8 @@ export interface Proof {
   examiner_pubkey: string;
   fingerprint: string;
   measured: Record<string, unknown> | null;
+  // what the examiner tested, as signed; null on proofs from before targets were signed
+  target: 'netlist' | 'bitstream' | 'fpga' | null;
 }
 
 export type AttemptStatus = 'queued' | 'running' | 'verified' | 'rejected' | 'error';

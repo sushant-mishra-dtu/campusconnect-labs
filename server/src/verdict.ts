@@ -4,6 +4,16 @@
 import crypto from 'node:crypto';
 import { one, type AttemptRow, type BookingRow, type NodeRow } from './db.js';
 
+// What the examiner tested, as it signed it. Only an enrolled ESP32 can have measured a
+// physical board; a sim examiner's verdict must say which simulated form of the design it ran.
+export type Target = 'netlist' | 'bitstream' | 'fpga';
+export const TARGETS_FOR_KIND: Record<string, Target[]> = { sim: ['netlist', 'bitstream'], esp32: ['fpga'] };
+const TARGET_TEXT: Record<Target, string> = {
+  netlist: 'simulated synthesized netlist, no FPGA',
+  bitstream: 'simulated iCE40 bitstream, no FPGA',
+  fpga: 'physical FPGA',
+};
+
 export interface VerdictPayload {
   v: number;
   attempt: string;
@@ -11,6 +21,7 @@ export interface VerdictPayload {
   node: string;
   examiner: string;
   kind: string;
+  target: Target;
   nonce: string;
   counter: number;
   measured: Record<string, unknown>;
@@ -55,6 +66,11 @@ export function checkVerdict(att: AttemptRow, node: NodeRow, payloadText: string
   // rather than shown next to a label that contradicts it.
   if (p.kind !== (node.examiner_kind ?? 'sim')) return fail(`verdict says kind "${p.kind}", but this node's examiner is enrolled as "${node.examiner_kind ?? 'sim'}"`);
   checks.push('node, examiner and challenge match');
+
+  const kind = node.examiner_kind ?? 'sim';
+  if (p.v !== 2 || !p.target) return fail('verdict does not say what was examined (format v2 with a target is required)');
+  if (!TARGETS_FOR_KIND[kind]?.includes(p.target)) return fail(`a ${kind} examiner cannot have examined target "${p.target}"`);
+  checks.push(`examined: ${TARGET_TEXT[p.target]}`);
 
   if (!Number.isInteger(p.counter) || p.counter <= node.last_counter) {
     return fail(`counter ${p.counter} is not above the last accepted ${node.last_counter} (replay)`);

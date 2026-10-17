@@ -33,7 +33,7 @@ const node = one<NodeRow>("SELECT * FROM nodes WHERE id = 'n1'")!;
 
 function signed(overrides: Record<string, unknown> = {}, signer = key.privateKey) {
   const payload = JSON.stringify({
-    v: 1, attempt: 'att1', challenge: 'uart-nonce', node: 'n1', examiner: 'ex-1', kind: 'esp32',
+    v: 2, attempt: 'att1', challenge: 'uart-nonce', node: 'n1', examiner: 'ex-1', kind: 'esp32', target: 'fpga',
     nonce: '9c41e2', counter: 11, measured: { baud: 115385, echo: '9c41e2', early_tx: 0 }, result: 'pass',
     ...overrides,
   });
@@ -74,6 +74,24 @@ test('rejects a payload that claims a different examiner tier than the node is e
   const v = signed();
   const r = checkVerdict(attempt, { ...node, examiner_kind: 'sim' }, v.payload, v.sig);
   assert.match((r as { reason: string }).reason, /says kind .esp32., but this node's examiner is enrolled as .sim./);
+});
+
+test('rejects a verdict that does not say what was examined', () => {
+  const v = signed({ v: 1, target: undefined });
+  const r = checkVerdict(attempt, node, v.payload, v.sig);
+  assert.match((r as { reason: string }).reason, /what was examined/);
+});
+
+test('rejects a sim examiner that claims to have tested a physical FPGA', () => {
+  const v = signed({ kind: 'sim', target: 'fpga' });
+  const r = checkVerdict(attempt, { ...node, examiner_kind: 'sim' }, v.payload, v.sig);
+  assert.match((r as { reason: string }).reason, /sim examiner cannot have examined target "fpga"/);
+});
+
+test('rejects an ESP32 verdict that says it tested a simulation', () => {
+  const v = signed({ target: 'bitstream' });
+  const r = checkVerdict(attempt, node, v.payload, v.sig);
+  assert.match((r as { reason: string }).reason, /esp32 examiner cannot have examined target "bitstream"/);
 });
 
 test('rejects a verdict that names another node', () => {

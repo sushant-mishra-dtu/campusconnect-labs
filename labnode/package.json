@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@yowasp/nextpnr-ice40": "0.11.96-dev.805",
     "@yowasp/yosys": "0.68.1207",
     "ws": "^8.18.0"
   },

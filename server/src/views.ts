@@ -142,6 +142,7 @@ export function attemptView(a: AttemptRow, opts: { code?: boolean; log?: boolean
           examiner_pubkey: a.examiner_pubkey,
           fingerprint: fingerprint(a.examiner_pubkey),
           measured: parseJson<{ measured?: unknown }>(a.payload, {}).measured ?? null,
+          target: parseJson<{ target?: string }>(a.payload, {}).target ?? null,
         }
       : null,
     ...(opts.log ? { log: a.log } : {}),

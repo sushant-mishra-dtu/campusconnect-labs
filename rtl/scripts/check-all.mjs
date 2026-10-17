@@ -1,7 +1,9 @@
 // Runs every challenge's reference (must pass) and starter (must fail) through its testbench.
-// By default each design goes the way a sim lab node runs it: synthesized for iCE40 in the
-// yosys sandbox, then the gate-level netlist is simulated. --rtl simulates the source instead.
-// Usage: node rtl/scripts/check-all.mjs [challenge-id] [--nonce=hex] [--rtl]
+// By default each design goes the way a sim lab node runs it: synthesized in the yosys sandbox,
+// placed, routed and packed into the real iCE40 bitstream, and that bitstream read back to
+// Verilog and simulated. --netlist simulates yosys's gate-level netlist instead (no place and
+// route), --rtl the source (fastest while writing a challenge).
+// Usage: node rtl/scripts/check-all.mjs [challenge-id] [--nonce=hex] [--netlist | --rtl]
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -12,12 +14,14 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const challengesDir = path.resolve(here, '..', 'challenges');
 const sandbox = path.resolve(here, '..', '..', 'labnode', 'src', 'yosys-sandbox.mjs');
+const readback = path.resolve(here, '..', '..', 'labnode', 'src', 'bitstream-readback.mjs');
+const pcf = path.resolve(here, '..', 'boards', 'icebreaker.pcf');
 
 const args = process.argv.slice(2);
 const only = args.find((a) => !a.startsWith('--'));
 const nonceArg = args.find((a) => a.startsWith('--nonce='));
 const nonce = nonceArg ? nonceArg.slice(8) : '9c41e2';
-const rtl = args.includes('--rtl');
+const target = args.includes('--rtl') ? 'rtl' : args.includes('--netlist') ? 'netlist' : 'bitstream';
 
 function hasNative() {
   const r = spawnSync('iverilog', ['-V'], { encoding: 'utf8' });
@@ -50,10 +54,16 @@ function runOne(id, file) {
     return { ...r, ms: Date.now() - t0 };
   };
   let sources = ['dut.v'];
-  if (!rtl) {
+  if (target === 'netlist') {
     const y = spawnSync(process.execPath, [sandbox, work, 'netlist'], { encoding: 'utf8' });
     if (y.status !== 0) return done({ result: 'synth-error', out: (y.stdout ?? '') + (y.stderr ?? '') });
     sources = ['synth.v', 'cells_sim.v'];
+  } else if (target === 'bitstream') {
+    const y = spawnSync(process.execPath, [sandbox, work, 'json'], { encoding: 'utf8' });
+    if (y.status !== 0) return done({ result: 'synth-error', out: (y.stdout ?? '') + (y.stderr ?? '') });
+    const b = spawnSync(process.execPath, [readback, work, pcf], { encoding: 'utf8' });
+    if (b.status !== 0) return done({ result: 'pnr-error', out: (b.stdout ?? '') + (b.stderr ?? '') });
+    sources = ['readback.v', 'cells_sim.v'];
   }
   const build = tool(work, 'iverilog', ['-g2012', '-s', 'tb', '-o', 'sim.vvp', 'tb.v', ...sources]);
   if (build.status !== 0) return done({ result: 'build-error', out: build.stderr || build.stdout });
@@ -66,7 +76,13 @@ function runOne(id, file) {
 }
 
 const ids = fs.readdirSync(challengesDir).filter((d) => !only || d === only);
-console.log(rtl ? 'simulating the RTL source' : 'simulating the synthesized iCE40 netlist (what a sim lab node runs)');
+console.log(
+  {
+    rtl: 'simulating the RTL source',
+    netlist: 'simulating the synthesized iCE40 netlist',
+    bitstream: 'simulating the iCE40 bitstream read back to Verilog (what a sim lab node runs; no FPGA)',
+  }[target],
+);
 let failures = 0;
 for (const id of ids) {
   for (const [file, want] of [['reference.v', 'pass'], ['starter.v', 'fail']]) {

@@ -54,11 +54,18 @@ export function runTool(tool: string, args: string[], cwd: string, opts: RunOpts
 }
 
 const SANDBOX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'yosys-sandbox.mjs');
+const READBACK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'bitstream-readback.mjs');
 
 // yosys on student code, compiled to WebAssembly so it can't see the host filesystem.
 // netlist: dut.v -> synth.v + cells_sim.v (for simulation). json: dut.v -> top.json (for nextpnr).
 export function sandboxedYosys(dir: string, flow: 'netlist' | 'json', opts: RunOpts): Promise<RunResult> {
   return runProcess(process.execPath, [SANDBOX, dir, flow], dir, opts);
+}
+
+// top.json -> the real iCE40 bitstream (nextpnr and icepack as WebAssembly) -> readback.v, the
+// bitstream turned back into Verilog, for a node that simulates the board instead of flashing it.
+export function bitstreamReadback(dir: string, pcf: string, opts: RunOpts): Promise<RunResult> {
+  return runProcess(process.execPath, [READBACK, dir, pcf], dir, opts);
 }
 
 function runProcess(cmd: string, argv: string[], cwd: string | undefined, opts: RunOpts, wsl = false): Promise<RunResult> {

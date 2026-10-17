@@ -40,7 +40,7 @@ RESULT <key> pass|fail                 the verdict
 
 The nonce and the key arrive as plusargs: `vvp sim.vvp +nonce=9c41e2 +key=<16 hex digits>`. Every test derives its stimulus from the nonce, so a recorded output from one attempt is useless for the next. The key is random per run and only the testbench reads it; verdict lines without it are ignored.
 
-The lab node simulates the testbench against the design's **synthesized iCE40 netlist** (`synth.v` plus yosys's `cells_sim.v`), not the source. A testbench must therefore only touch the harness ports, never internal signals of `dut`.
+The lab node has no FPGA. It simulates the testbench against the design's **iCE40 bitstream read back to Verilog** (`readback.v` plus yosys's `cells_sim.v`), not the source: see [docs/SIMULATION.md](../docs/SIMULATION.md). A testbench must therefore only touch the harness ports, never internal signals of `dut`.
 
 ## Check everything
 
@@ -48,7 +48,7 @@ The lab node simulates the testbench against the design's **synthesized iCE40 ne
 npm run check:rtl
 ```
 
-This runs each `reference.v` (must pass) and each `starter.v` (must fail) through its testbench, the way a sim lab node does: synthesized by the sandboxed yosys, then the netlist simulated. `npm run check:rtl -- --rtl` simulates the source instead, which is faster while writing a challenge. It uses a native `iverilog` if one is on `PATH`, otherwise the one inside WSL.
+This runs each `reference.v` (must pass) and each `starter.v` (must fail) through its testbench, the way a sim lab node does: synthesized by the sandboxed yosys, placed and routed, packed into the UP5K bitstream, read back to Verilog with `icebox_vlog`, and simulated. `-- --netlist` simulates yosys's netlist instead (no place and route), and `-- --rtl` simulates the source, which is fastest while writing a challenge. It uses a native `iverilog` if one is on `PATH`, otherwise the one inside WSL.
 
 ```bash
 npm run check:ice40

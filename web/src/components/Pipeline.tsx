@@ -12,7 +12,11 @@ const STAGES = [
 
 const INDEX: Record<string, number> = { queued: 1, received: 1, build: 1, flash: 2, examine: 3, sign: 4, verify: 5, verified: 6 };
 
-export function Pipeline({ attempt }: { attempt: Attempt | null }) {
+// On a sim node nothing is flashed: the build is loaded into the simulator instead.
+const SIM_FLASH = { key: 'flash', label: 'Load', detail: 'into the simulator, no board' };
+
+export function Pipeline({ attempt, simulated }: { attempt: Attempt | null; simulated?: boolean }) {
+  const stages = simulated ? STAGES.map((s) => (s.key === 'flash' ? SIM_FLASH : s)) : STAGES;
   const status = attempt?.status;
   const idx = attempt ? (status === 'verified' ? 6 : (INDEX[attempt.stage ?? 'queued'] ?? 1)) : 0;
   const failed = status === 'error' || status === 'rejected';
@@ -20,7 +24,7 @@ export function Pipeline({ attempt }: { attempt: Attempt | null }) {
 
   return (
     <ol className="grid grid-cols-6 gap-1.5">
-      {STAGES.map((s, i) => {
+      {stages.map((s, i) => {
         const done = attempt && (i < idx || status === 'verified') && i !== failedAt;
         const active = attempt && !failed && status !== 'verified' && i === idx;
         const bad = i === failedAt;

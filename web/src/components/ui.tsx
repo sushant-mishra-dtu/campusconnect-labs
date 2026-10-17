@@ -214,10 +214,28 @@ export function KindBadge({ kind, compact }: { kind: 'sim' | 'esp32' | string | 
   }
   return (
     <Tag tone="proof">
-      <ChipIcon className="h-3 w-3" /> {compact ? 'Sim' : 'Verified in simulation'}
+      <ChipIcon className="h-3 w-3" /> {compact ? 'Simulated' : 'Simulated, no physical FPGA'}
     </Tag>
   );
 }
+
+// What the examiner signed it tested, in words a judge or recruiter can check against the payload.
+export const TARGET_TEXT: Record<'netlist' | 'bitstream' | 'fpga', { title: string; detail: string }> = {
+  netlist: {
+    title: 'Simulated: synthesized gate-level netlist',
+    detail:
+      'No physical FPGA was used. The lab node synthesized the design for an iCE40 UP5K and ran the examiner testbench against that gate-level netlist in Icarus Verilog, on a laptop.',
+  },
+  bitstream: {
+    title: 'Simulated: the iCE40 bitstream, read back',
+    detail:
+      'No physical FPGA was used. The lab node placed and routed the design and packed the same iCE40 UP5K bitstream a real board would be flashed with, converted that bitstream back to Verilog, and ran the examiner testbench against it in Icarus Verilog, on a laptop.',
+  },
+  fpga: {
+    title: 'Measured on a physical FPGA',
+    detail: 'The design was flashed to a real iCE40 board and the ESP32-S3 examiner wired to its pins drove the inputs and measured the outputs.',
+  },
+};
 
 export function SkillChip({ slug, state }: { slug: string; state: 'proven' | 'missing' | 'neutral' }) {
   const meta = useMeta();

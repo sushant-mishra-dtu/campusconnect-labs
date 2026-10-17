@@ -167,6 +167,8 @@ export function Attempt() {
   const html = useMemo(() => (ch ? renderMarkdown(ch.spec) : ''), [ch]);
 
   const node = nodes.data?.find((n) => n.id === nodeId);
+  // Only an enrolled ESP32 examiner has a physical board behind it; every other node simulates one.
+  const simulated = node?.examiner?.kind !== 'esp32';
   const booking = bookings.data?.find((b) => b.node_id === nodeId && b.starts_at <= now && b.ends_at > now);
   const running = attempt && ['queued', 'running'].includes(attempt.status);
 
@@ -323,7 +325,7 @@ export function Attempt() {
               )}
               <Button kind="proof" onClick={submit} disabled={!booking || !node?.online || busy !== null || !!running} className="ml-auto">
                 {(busy === 'submit' || running) && <Spinner />}
-                {running ? 'Running on the board…' : 'Build, flash & examine'}
+                {simulated ? (running ? 'Simulating on the lab node…' : 'Build & simulate') : running ? 'Running on the board…' : 'Build, flash & examine'}
               </Button>
             </div>
             {!booking && <div className="mt-2 text-xs text-trace">The platform only sends code to a board you have a live booking on.</div>}
@@ -332,7 +334,7 @@ export function Attempt() {
           </div>
 
           <div className="border-b border-white/10 px-4 py-3">
-            <Pipeline attempt={attempt} />
+            <Pipeline attempt={attempt} simulated={simulated} />
           </div>
 
           <div className="min-h-[180px] flex-1">

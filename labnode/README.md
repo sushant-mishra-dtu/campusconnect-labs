@@ -11,13 +11,15 @@ npm run labnode -- --info            # print the examiner id and public key
 
 | | `sim` (default) | `hw` |
 |---|---|---|
-| Build | sandboxed `yosys synth_ice40` → gate-level netlist, then `iverilog` | sandboxed `yosys` → `nextpnr-ice40 --up5k` → `icepack` |
-| Flash | none: loads the compiled model | `iceprog` |
-| Examine | the challenge's `tb.v` against the netlist; nonce and a per-run verdict key as plusargs | ESP32-S3 drives inputs and measures outputs on the real pins |
+| Board | none: the FPGA is simulated | a real iCE40 board |
+| Build | sandboxed `yosys` → `nextpnr-ice40 --up5k` → `icepack` → `icepack -u` → `icebox_vlog`: the bitstream read back to Verilog | sandboxed `yosys` → `nextpnr-ice40 --up5k` → `icepack` |
+| Flash | none: loads the readback into `iverilog` | `iceprog` |
+| Examine | the challenge's `tb.v` against the readback; nonce and a per-run verdict key as plusargs | ESP32-S3 drives inputs and measures outputs on the real pins |
 | Signing key | `labnode/keys/sim-<node>.pem`, on this machine | generated on the ESP32, never leaves it |
-| Shown on the platform as | Verified in simulation | Verified on silicon (the operator enrolls the ESP32's key first) |
+| Signed `target` | `bitstream` (`netlist` with `--sim-target=netlist`) | `fpga` |
+| Shown on the platform as | Simulated, no physical FPGA | Verified on silicon (the operator enrolls the ESP32's key first) |
 
-yosys is `@yowasp/yosys` from npm (WebAssembly). The other tools run natively, or inside WSL on Windows when they are not on `PATH`. Set `CCL_WSL_DISTRO` to pick a distro.
+yosys (`@yowasp/yosys`) and, in sim mode, nextpnr-ice40 and icepack (`@yowasp/nextpnr-ice40`) come from npm as WebAssembly. `icebox_vlog` is vendored in `vendor/icebox` and needs Python 3 (`CCL_PYTHON` if it isn't `python` on Windows or `python3` elsewhere). iverilog and the `hw` tools run natively, or inside WSL on Windows when they are not on `PATH`. Set `CCL_WSL_DISTRO` to pick a distro. [docs/SIMULATION.md](../docs/SIMULATION.md) covers what the simulation does and doesn't model.
 
 ## Configuration
 
@@ -27,6 +29,7 @@ yosys is `@yowasp/yosys` from npm (WebAssembly). The other tools run natively, o
 | `--node=` | `CCL_NODE` | `iiitd-01` |
 | `--token=` | `CCL_NODE_TOKEN` | contents of `keys/<node>.token` (written by `npm run seed`); no built-in token |
 | `--mode=` | `CCL_MODE` | `sim` |
+| `--sim-target=` | `CCL_SIM_TARGET` | `bitstream` (or `netlist`: skip place and route, simulate yosys's netlist) |
 | `--serial=` | `CCL_SERIAL` | none (required for `hw`, e.g. `COM5` or `/dev/ttyACM0`) |
 | `--pcf=` | `CCL_PCF` | `rtl/boards/icebreaker.pcf` |
 
@@ -54,8 +57,8 @@ Each stage and every tool output line is streamed to the student's live console.
 Student Verilog runs on a lender's PC, so nothing native ever parses it:
 
 - **yosys runs as WebAssembly** (`src/yosys-sandbox.mjs`), in a child process with a timeout. Its filesystem holds only `dut.v`, so `$readmemh("/etc/passwd")` or an `` `include `` of a host path finds nothing.
-- **Only the synthesized netlist is simulated.** yosys drops `$display`/assertion cells and the build fails unless every remaining cell is an iCE40 primitive. The primitives' models come from yosys's own `cells_sim.v`, with its one file read (`$readmemh` of a RAM `INIT_FILE`) removed. So the design can't print, read plusargs or end the run. Like on hardware, it can only drive its pins.
+- **Only what is decoded from the bitstream is simulated.** yosys drops `$display`/assertion cells and the build fails unless every remaining cell is an iCE40 primitive. nextpnr and icepack (WebAssembly) turn that into `top.bin`, and `icebox_vlog` rebuilds Verilog from the configuration bits alone, so no name or text from the student's source survives. The primitives' models come from yosys's own `cells_sim.v`, with its one file read (`$readmemh` of a RAM `INIT_FILE`) removed. So the design can't print, read plusargs or end the run. Like on hardware, it can only drive its pins. Designs using blocks the readback can't decode faithfully (DSP, SPRAM, oscillators, PLLs, hard IP) are refused.
 - **The testbench tags its verdict.** `RESULT` and `MEASURED` lines carry a random key passed only to this run's testbench; lines without it are ignored.
-- iverilog, vvp, nextpnr and icepack only ever see that netlist.
+- nextpnr and icepack only see yosys's netlist; icebox_vlog, iverilog and vvp only see what was unpacked from the bitstream.
 
 The lint in `src/lint.ts` (must define `module top`; no file tasks, `$finish` or `` `include ``) is there for friendly early errors, not as the boundary.

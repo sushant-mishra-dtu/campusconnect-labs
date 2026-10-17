@@ -1,12 +1,14 @@
-// No board attached: synthesize for iCE40 in the yosys sandbox, then run the challenge
-// testbench in iverilog against the synthesized netlist, not the source. The netlist is
-// only iCE40 primitives, so the design cannot print a verdict, read the nonce plusarg or
-// end the run early: like on hardware, all it can do is drive its pins.
+// No board attached. By default the design is built all the way to the iCE40 bitstream a board
+// would be flashed with, that bitstream is read back to Verilog, and the challenge testbench
+// runs in iverilog against the readback (target "bitstream"). With --sim-target=netlist it runs
+// against yosys's gate-level netlist instead. Either way the simulated design is only iCE40
+// primitives, so it cannot print a verdict, read the nonce plusarg or end the run early: like
+// on hardware, all it can do is drive its pins.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CHALLENGES_DIR } from '../config.js';
-import { runTool, sandboxedYosys } from '../hdl.js';
+import { bitstreamReadback, runTool, sandboxedYosys } from '../hdl.js';
 
 type Log = (line: string) => void;
 
@@ -42,10 +44,24 @@ export async function synthNetlist(dir: string, log: Log): Promise<string | null
   return null;
 }
 
-export async function compileSim(dir: string, testId: string, log: Log): Promise<string | null> {
+export async function buildReadback(dir: string, pcf: string, log: Log): Promise<string | null> {
+  log('[yosys] synth_ice40 -top top (sandboxed)');
+  const y = await sandboxedYosys(dir, 'json', { timeoutSec: 90, onLine: (l) => l.trim() && log(`[yosys] ${l}`) });
+  if (y.timedOut) return 'synthesis timed out';
+  if (y.code !== 0) return 'synthesis failed';
+  logStat(dir, log);
+  const r = await bitstreamReadback(dir, pcf, { timeoutSec: 240, onLine: (l, stream) => stream === 'out' && l.trim() && log(l) });
+  if (r.timedOut) return 'place and route timed out';
+  if (r.code !== 0) return r.stderr.trim().split(/\r?\n/).pop() || 'building the bitstream failed';
+  return null;
+}
+
+export const SIM_SOURCES = { netlist: ['synth.v', 'cells_sim.v'], bitstream: ['readback.v', 'cells_sim.v'] };
+
+export async function compileSim(dir: string, testId: string, target: keyof typeof SIM_SOURCES, log: Log): Promise<string | null> {
   fs.copyFileSync(path.join(CHALLENGES_DIR, testId, 'tb.v'), path.join(dir, 'tb.v'));
-  log('[iverilog] compiling the netlist with the examiner testbench');
-  const r = await runTool('iverilog', ['-g2012', '-s', 'tb', '-o', 'sim.vvp', 'tb.v', 'synth.v', 'cells_sim.v'], dir, {
+  log(`[iverilog] compiling the ${target === 'bitstream' ? 'bitstream readback' : 'netlist'} with the examiner testbench`);
+  const r = await runTool('iverilog', ['-g2012', '-s', 'tb', '-o', 'sim.vvp', 'tb.v', ...SIM_SOURCES[target]], dir, {
     timeoutSec: 60,
     onLine: (l) => l.trim() && log(`[iverilog] ${l}`),
   });
