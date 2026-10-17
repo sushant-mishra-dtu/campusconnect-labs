@@ -10,6 +10,8 @@ import { Labs } from './pages/Labs';
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
 import { PostChallenge } from './pages/PostChallenge';
+import { Profile } from './pages/Profile';
+import { Proof } from './pages/Proof';
 
 function Private({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth();
@@ -30,6 +32,8 @@ export function App() {
         <Route path="/challenges/:id" element={<ChallengeDetail />} />
         <Route path="/challenges/:id/attempt" element={<Private><Attempt /></Private>} />
         <Route path="/labs" element={<Labs />} />
+        <Route path="/u/:id" element={<Profile />} />
+        <Route path="/proof/:id" element={<Proof />} />
         <Route path="*" element={<Private><Navigate to="/" replace /></Private>} />
       </Route>
     </Routes>
