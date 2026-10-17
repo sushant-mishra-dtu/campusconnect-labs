@@ -114,19 +114,29 @@ const el = (tag, attrs = {}, text) => {
 const boxes = {};
 const edges = {};
 let pipelineSig = '';
-const fit = (text, w, px) => {
-  const n = Math.floor((w - 24) / px);
-  return text.length > n ? text.slice(0, n - 1) + '…' : text;
-};
+// Puts text in an SVG text element, shrinking the font until it fits and cutting it with an
+// ellipsis only as a last resort
+function setFit(t, text, max) {
+  t.textContent = text;
+  t.style.fontSize = '';
+  let size = parseFloat(getComputedStyle(t).fontSize);
+  while (t.getComputedTextLength() > max && size > 9.5) {
+    size -= 0.5;
+    t.style.fontSize = size + 'px';
+  }
+  for (let n = text.length - 1; n > 1 && t.getComputedTextLength() > max; n--) t.textContent = text.slice(0, n) + '…';
+}
 
 function box(id, x, y, w, h, title, sub) {
   const g = el('g', { class: 'box' });
   g.append(el('rect', { x, y, width: w, height: h, rx: 12 }));
-  g.append(el('text', { class: 't', x: x + 14, y: y + 26 }, fit(title, w, 8.2)));
-  const s = el('text', { class: 's', x: x + 14, y: y + 46 }, fit(sub, w, 6.9));
+  const t = el('text', { class: 't', x: x + 14, y: y + 26 });
+  const s = el('text', { class: 's', x: x + 14, y: y + 46 });
   const v = el('text', { class: 'v', x: x + 14, y: y + h - 16 }, '');
-  g.append(s, v);
+  g.append(t, s, v);
   $('boxes').append(g);
+  setFit(t, title, w - 26);
+  setFit(s, sub, w - 26);
   boxes[id] = { g, s, v, w };
 }
 function edge(key, d) {
@@ -236,9 +246,9 @@ function applyState(s) {
   const done = s.jobs.filter((j) => j.total);
   $('s-avg').textContent = done.length ? secs(Math.round(done.reduce((a, j) => a + j.total, 0) / done.length)) : '–';
 
-  boxes.platform.s.textContent = fit(s.platform.replace(/^wss?:\/\//, ''), boxes.platform.w, 6.9);
+  setFit(boxes.platform.s, s.platform.replace(/^wss?:\/\//, ''), boxes.platform.w - 26);
   boxes.platform.v.textContent = s.connection === 'paired' ? `paired ${fmtUp(s.now - s.since)} ago` : s.connection;
-  boxes.agent.s.textContent = fit(`${s.node} · ${s.mode}`, boxes.agent.w, 6.9);
+  setFit(boxes.agent.s, `${s.node} · ${s.mode}`, boxes.agent.w - 26);
   boxes.agent.v.textContent = s.examiner.counter != null ? `counter ${s.examiner.counter}` : 'no verdict signed yet';
   const j = s.job;
   for (const p of s.pipeline) {

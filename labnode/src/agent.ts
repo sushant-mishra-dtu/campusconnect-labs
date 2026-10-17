@@ -40,20 +40,20 @@ function jobProblem(job: Job) {
 const PIPELINE =
   config.mode === 'hw'
     ? [
-        { id: 'lint', title: 'Lint', sub: 'early, friendly errors' },
-        { id: 'yosys', title: 'yosys · WebAssembly', sub: 'sees only dut.v' },
-        { id: 'nextpnr', title: 'nextpnr-ice40', sub: 'place and route' },
-        { id: 'icepack', title: 'icepack', sub: 'pack the bitstream' },
+        { id: 'lint', title: 'Lint', sub: 'early errors' },
+        { id: 'yosys', title: 'yosys (wasm)', sub: 'sees only dut.v' },
+        { id: 'nextpnr', title: 'nextpnr', sub: 'place & route' },
+        { id: 'icepack', title: 'icepack', sub: 'bitstream' },
         { id: 'iceprog', title: 'iceprog', sub: 'flash over USB' },
         { id: 'board', title: 'iCE40 board', sub: 'runs the design' },
-        { id: 'esp32', title: 'ESP32 examiner', sub: 'measures pins, signs' },
+        { id: 'esp32', title: 'ESP32', sub: 'measures and signs' },
       ]
     : [
-        { id: 'lint', title: 'Lint', sub: 'early, friendly errors' },
-        { id: 'yosys', title: 'yosys · WebAssembly', sub: 'sees only dut.v' },
+        { id: 'lint', title: 'Lint', sub: 'early errors' },
+        { id: 'yosys', title: 'yosys (wasm)', sub: 'sees only dut.v' },
         { id: 'iverilog', title: 'iverilog', sub: 'netlist + testbench' },
-        { id: 'vvp', title: 'vvp', sub: 'runs the examiner testbench' },
-        { id: 'examiner', title: 'Sim examiner', sub: 'P-256 key on this machine' },
+        { id: 'vvp', title: 'vvp', sub: 'runs the testbench' },
+        { id: 'examiner', title: 'Sim examiner', sub: 'key on this machine' },
       ];
 // Tool output prefix → station, so the dashboard can follow steps that run inside one call
 const PREFIX: Record<string, string> = {

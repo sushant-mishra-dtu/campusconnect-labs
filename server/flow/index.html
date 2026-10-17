@@ -182,7 +182,19 @@ function drawStatic() {
 }
 
 // Same machine or another one; the platform judges it from the address the node dialled in from
-const where = (n) => (n.address ? `${n.local ? 'this machine' : 'another machine'} · ${n.address}` : '');
+const where = (n) => (n.address ? `${n.local ? 'this machine' : 'other machine'} · ${n.address}` : '');
+
+// Shrinks an SVG text's font until it fits, then cuts it with an ellipsis as a last resort
+function fitText(t, max) {
+  t.style.fontSize = '';
+  let size = parseFloat(getComputedStyle(t).fontSize);
+  while (t.getComputedTextLength() > max && size > 10) {
+    size -= 0.5;
+    t.style.fontSize = size + 'px';
+  }
+  const full = t.textContent;
+  for (let n = full.length - 1; n > 1 && t.getComputedTextLength() > max; n--) t.textContent = full.slice(0, n) + '…';
+}
 
 function drawNodes(nodes) {
   const sig = nodes.map((n) => n.id).join(',');
@@ -211,9 +223,10 @@ function drawNodes(nodes) {
     b.g.classList.toggle('off', !n.online);
     b.tag.textContent = (n.online ? '● ' : '○ ') + (n.kind === 'esp32' ? 'SILICON' : 'SIM');
     b.tag.setAttribute('fill', n.online ? (n.kind === 'esp32' ? color('verdict') : color('job')) : color('log'));
-    b.lines[0].textContent = (n.name + ' · ' + n.college).slice(0, 30);
-    b.lines[1].textContent = n.online ? where(n).slice(0, 30) : 'offline';
+    b.lines[0].textContent = n.name + ' · ' + n.college;
+    b.lines[1].textContent = n.online ? where(n) : 'offline';
     b.lines[2].textContent = n.fingerprint ? `key ${n.fingerprint.slice(0, 9)}… · ctr ${Math.max(0, n.counter)}` : 'no examiner key pinned';
+    for (const t of b.lines) fitText(t, b.b.w - 30);
   }
 }
 
@@ -267,7 +280,8 @@ function applyState(s) {
   $('s-up').textContent = fmtUp(s.uptime);
   const people = s.browsers.people;
   boxEls.browser.lines[0].textContent = `${s.browsers.tabs} tab${s.browsers.tabs === 1 ? '' : 's'} open`;
-  boxEls.browser.lines[1].textContent = (people.length ? people.join(', ') : 'nobody signed in').slice(0, 28);
+  boxEls.browser.lines[1].textContent = people.length ? people.join(', ') : 'nobody signed in';
+  fitText(boxEls.browser.lines[1], BOXES.browser.w - 30);
   boxEls.browser.lines[2].textContent = s.browsers.anonymous ? `+ ${s.browsers.anonymous} signed out` : '';
   const up = s.nodes.filter((n) => n.online).length;
   boxEls.hub.lines[2].textContent = `${up} node${up === 1 ? '' : 's'} · ${s.browsers.tabs} browser socket${s.browsers.tabs === 1 ? '' : 's'}`;
