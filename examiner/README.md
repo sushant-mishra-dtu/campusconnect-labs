@@ -16,4 +16,4 @@ pio device monitor         # then type {"cmd":"info"} to see the examiner id and
 
 Protocol and payload format: [docs/PROTOCOL.md](../docs/PROTOCOL.md).
 
-Not yet flashed to hardware: the simulation examiner in `labnode/` is what has been exercised end to end.
+Compiles cleanly with `pio run` (Arduino-ESP32 2.0.17 on the official `espressif32` platform) but has not been flashed to hardware yet: the simulation examiner in `labnode/` is what has been exercised end to end.

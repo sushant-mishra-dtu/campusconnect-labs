@@ -71,4 +71,4 @@ Hardening for production (not done in the hackathon build): enable flash encrypt
 
 ## Status
 
-The firmware is written against Arduino-ESP32 (2.x and 3.x mbedTLS APIs are both handled) but has **not** been flashed to a board yet. The sim path is what has been run end to end.
+The firmware compiles cleanly with `pio run` in `examiner/` (official `espressif32` platform 7.1.3, Arduino-ESP32 2.0.17, mbedTLS 2.28; no warnings with `-Wall -Wextra`; 6.6% RAM, 11.3% flash) but has **not** been flashed to a board yet. `signer.cpp` also has a branch for the mbedTLS 3.x API (Arduino-ESP32 3.x); that branch has not been compiled. The sim path is what has been run end to end.
