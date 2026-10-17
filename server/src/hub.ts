@@ -3,8 +3,9 @@ import type { IncomingMessage, Server } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { userFromToken } from './auth.js';
 import { all, one, run, tx, type AttemptRow, type ChallengeRow, type NodeRow } from './db.js';
+import { trace } from './flow.js';
 import { notify } from './notify.js';
-import { broadcast, clients, nodeSockets, pushToWatchers } from './presence.js';
+import { broadcast, clients, nodeAddresses, nodeSockets, pushToWatchers } from './presence.js';
 import { TESTS } from './tests.js';
 import { fingerprint, keyHash, now, prefixedId, sha256 } from './util.js';
 import { checkVerdict } from './verdict.js';
@@ -59,10 +60,12 @@ export function cancelAttemptsForBooking(bookingId: string) {
 export function dispatchAttempt(a: AttemptRow) {
   const ws = nodeSockets.get(a.node_id);
   if (!ws) {
+    trace('error', 'hub', `node:${a.node_id}`, `job ${a.id} not sent: the node is offline`, { attempt: a.id, ok: false });
     finishWithError(a.id, 'lab node is offline');
     return;
   }
   ws.send(JSON.stringify({ type: 'job', attempt: a.id, challenge: a.test_id, nonce: a.nonce, code: a.code }));
+  trace('job', 'hub', `node:${a.node_id}`, `job ${a.id} · ${a.test_id} · nonce ${a.nonce} · ${Buffer.byteLength(a.code)} bytes of Verilog`, { attempt: a.id });
   appendLog(a.id, `[platform] booking ok, nonce ${a.nonce} issued, sent to ${a.node_id}`);
   const limit = ((TESTS.get(a.test_id)?.maxSeconds ?? 30) + 90) * 1000;
   timers.set(a.id, setTimeout(() => finishWithError(a.id, 'lab node did not return a verdict in time'), limit));
@@ -82,10 +85,15 @@ function acceptVerdict(nodeId: string, attemptId: string, payloadText: string, s
   timers.delete(attemptId);
 
   const check = checkVerdict(a, node, payloadText, sig);
-  for (const c of check.checks) appendLog(attemptId, `[platform] ✓ ${c}`);
+  for (const c of check.checks) {
+    appendLog(attemptId, `[platform] ✓ ${c}`);
+    trace('check', 'hub', 'verify', c, { attempt: attemptId, ok: true });
+  }
 
   if (!check.ok) {
     appendLog(attemptId, `[platform] ✗ verdict rejected: ${check.reason}`);
+    trace('check', 'hub', 'verify', `rejected: ${check.reason}`, { attempt: attemptId, ok: false });
+    trace('db', 'verify', 'db', `attempt ${attemptId} recorded as rejected`, { attempt: attemptId, ok: false });
     run(`UPDATE attempts SET status = 'rejected', stage = 'verify', payload = ?, sig = ?, reject_reason = ?,
          examiner_id = ?, examiner_kind = ?, examiner_pubkey = ?, finished_at = ? WHERE id = ?`,
       payloadText, sig, check.reason, node.examiner_id, node.examiner_kind, node.examiner_pubkey, now(), attemptId);
@@ -98,6 +106,7 @@ function acceptVerdict(nodeId: string, attemptId: string, payloadText: string, s
   const t = now();
   let newBadge = false;
   let newProof = false;
+  let newLent = false;
 
   tx(() => {
     run('UPDATE nodes SET last_counter = ? WHERE id = ?', p.counter, nodeId);
@@ -125,8 +134,14 @@ function acceptVerdict(nodeId: string, attemptId: string, payloadText: string, s
       run(`INSERT INTO connections (id, from_id, to_id, type, attempt_id, node_id, created_at)
            VALUES (?, ?, ?, 'lent_board', ?, ?, ?)`,
         prefixedId('e'), node.owner_id, a.user_id, a.id, nodeId, t);
+      newLent = true;
     }
   });
+
+  trace('db', 'verify', 'db', `attempt ${attemptId} recorded: ${p.result}, examiner counter ${p.counter}`, { attempt: attemptId, ok: p.result === 'pass' });
+  if (newBadge) trace('db', 'verify', 'db', `badge issued: ${a.test_id}`, { attempt: attemptId });
+  if (newProof) trace('db', 'verify', 'db', 'connection: student → challenge author (proved_for)', { attempt: attemptId });
+  if (newLent) trace('db', 'verify', 'db', 'connection: club → student (lent_board)', { attempt: attemptId });
 
   appendLog(attemptId, `[platform] verdict accepted: ${p.result.toUpperCase()}`);
   if (p.result === 'pass') {
@@ -142,8 +157,9 @@ function acceptVerdict(nodeId: string, attemptId: string, payloadText: string, s
 
 // ------------------------------------------------------------------ node sockets
 
-function handleNode(ws: WebSocket) {
+function handleNode(ws: WebSocket, req: IncomingMessage) {
   let nodeId: string | null = null;
+  const address = (req.socket.remoteAddress ?? '?').replace(/^::ffff:/, '');
 
   ws.on('message', (raw) => {
     let msg: NodeMsg;
@@ -155,6 +171,7 @@ function handleNode(ws: WebSocket) {
 
     if (msg.type === 'hello') {
       const reject = (reason: string, retry = false) => {
+        trace('error', `node:${String(msg.node ?? '?').slice(0, 40)}`, 'hub', `hello from ${address} refused: ${reason}`, { ok: false });
         ws.send(JSON.stringify({ type: 'rejected', reason, retry }));
         ws.close();
       };
@@ -184,6 +201,7 @@ function handleNode(ws: WebSocket) {
           : `key ${fingerprint(ex.pubkey)} is enrolled as an ESP32 examiner for ${node.id}; start the lab node with --mode=hw`);
       }
 
+      const wasPinned = !!node.examiner_pubkey;
       if (node.examiner_pubkey) {
         if (keyHash(node.examiner_pubkey) !== exHash) {
           return reject(`examiner key ${fingerprint(ex.pubkey)} does not match the pinned key ${fingerprint(node.examiner_pubkey)}`);
@@ -199,9 +217,12 @@ function handleNode(ws: WebSocket) {
           ex.id, kind, ex.pubkey, node.id);
       }
       nodeSockets.set(node.id, ws);
+      nodeAddresses.set(node.id, address);
       nodeId = node.id;
       run('UPDATE nodes SET last_seen = ? WHERE id = ?', now(), node.id);
+      trace('socket', `node:${node.id}`, 'hub', `hello from ${address}: examiner ${fingerprint(ex.pubkey)} ${wasPinned ? 'matches the pinned key' : 'pinned'} (${kind})`);
       ws.send(JSON.stringify({ type: 'welcome', node: node.id, fingerprint: fingerprint(ex.pubkey), kind }));
+      trace('socket', 'hub', `node:${node.id}`, `welcome · ${kind === 'esp32' ? 'silicon' : 'simulation'} examiner`);
       console.log(`[hub] node ${node.id} online (examiner ${ex.id}, ${fingerprint(ex.pubkey)}, ${kind})`);
       broadcast({ type: 'nodes' });
       return;
@@ -211,18 +232,24 @@ function handleNode(ws: WebSocket) {
     const a = 'attempt' in msg ? getAttempt(msg.attempt) : undefined;
     if (!a || a.node_id !== nodeId) return;
 
+    const from = `node:${nodeId}`;
     switch (msg.type) {
       case 'status':
+        trace('stage', from, 'hub', `${a.id} · ${msg.stage}`, { attempt: a.id });
         run("UPDATE attempts SET status = 'running', stage = ? WHERE id = ? AND status IN ('queued','running')", msg.stage, a.id);
+        trace('db', 'hub', 'db', `attempt ${a.id} stage → ${msg.stage}`, { attempt: a.id });
         publishAttempt(a.id);
         break;
       case 'log':
+        trace('log', from, 'hub', String(msg.line).slice(0, 200), { attempt: a.id });
         appendLog(a.id, String(msg.line).slice(0, 2000));
         break;
       case 'verdict':
+        trace('verdict', from, 'hub', `signed verdict for ${a.id} · ${Buffer.byteLength(String(msg.payload))} B payload, ${Buffer.from(String(msg.sig), 'base64').length} B ECDSA signature`, { attempt: a.id });
         acceptVerdict(nodeId, a.id, String(msg.payload), String(msg.sig));
         break;
       case 'error':
+        trace('error', from, 'hub', `${a.id} · ${msg.stage ?? 'error'}: ${msg.message}`, { attempt: a.id, ok: false });
         finishWithError(a.id, msg.message, msg.stage);
         break;
     }
@@ -230,7 +257,9 @@ function handleNode(ws: WebSocket) {
 
   ws.on('close', () => {
     if (nodeId && nodeSockets.get(nodeId) === ws) {
+      trace('socket', `node:${nodeId}`, 'hub', `disconnected (${address})`, { ok: false });
       nodeSockets.delete(nodeId);
+      nodeAddresses.delete(nodeId);
       run('UPDATE nodes SET last_seen = ? WHERE id = ?', now(), nodeId);
       console.log(`[hub] node ${nodeId} offline`);
       failOrphanedAttempts(nodeId);
@@ -245,6 +274,8 @@ function handleClient(ws: WebSocket, req: IncomingMessage) {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const user = userFromToken(url.searchParams.get('token'));
   clients.set(ws, { userId: user?.id ?? null, watching: new Set() });
+  const who = user ? user.name : 'signed-out visitor';
+  trace('socket', 'browser', 'hub', `browser tab connected · ${who}`);
 
   ws.on('message', (raw) => {
     let msg: { type: string; attempt?: string };
@@ -259,13 +290,17 @@ function handleClient(ws: WebSocket, req: IncomingMessage) {
       const a = getAttempt(msg.attempt);
       if (a && a.user_id === st.userId) {
         st.watching.add(a.id);
+        trace('socket', 'browser', 'hub', `${who} watches attempt ${a.id}`, { attempt: a.id });
         ws.send(JSON.stringify({ type: 'attempt', attempt: attemptView(a, { log: true }) }));
       }
     }
     if (msg.type === 'unwatch' && msg.attempt) st.watching.delete(msg.attempt);
   });
 
-  ws.on('close', () => clients.delete(ws));
+  ws.on('close', () => {
+    clients.delete(ws);
+    trace('socket', 'browser', 'hub', `browser tab closed · ${who}`);
+  });
 }
 
 // ------------------------------------------------------------------ wiring
@@ -273,7 +308,7 @@ function handleClient(ws: WebSocket, req: IncomingMessage) {
 export function attachHub(server: Server) {
   const nodeWss = new WebSocketServer({ noServer: true });
   const clientWss = new WebSocketServer({ noServer: true });
-  nodeWss.on('connection', (ws) => handleNode(ws));
+  nodeWss.on('connection', (ws, req) => handleNode(ws, req));
   clientWss.on('connection', (ws, req) => handleClient(ws, req));
 
   server.on('upgrade', (req, socket, head) => {

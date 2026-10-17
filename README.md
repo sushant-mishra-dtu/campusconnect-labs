@@ -17,7 +17,9 @@ There are no follow buttons. Every edge in the graph points to something that ha
 
 ## Run it
 
-Needs Node 22.13+ (uses the built-in `node:sqlite`), Icarus Verilog and Python 3 for the simulation lab node. On Windows, `iverilog` inside WSL is picked up automatically. yosys, nextpnr-ice40 and icepack come from npm as WebAssembly, so there's nothing to install for them.
+Needs Node 22.13+ (uses the built-in `node:sqlite`), Icarus Verilog 12 or newer and Python 3 for the simulation lab node (Ubuntu 22.04's Icarus package is 11, which can't read the iCE40 cell models). On Windows, `iverilog` inside WSL is picked up automatically. yosys, nextpnr-ice40 and icepack come from npm as WebAssembly, so there's nothing to install for them.
+
+With Docker, `docker compose up -d --build` runs the platform and a simulation lab node together on http://localhost:4000, with live data-flow dashboards at http://localhost:4000/flow and http://localhost:4100. See [docs/DEPLOY.md](docs/DEPLOY.md), which also covers running a college lab node on its own.
 
 ```bash
 npm install

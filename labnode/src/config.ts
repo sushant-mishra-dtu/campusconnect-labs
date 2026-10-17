@@ -16,12 +16,13 @@ function arg(name: string) {
 const node = arg('node') ?? process.env.CCL_NODE ?? 'iiitd-01';
 const keysDir = process.env.CCL_KEYS_DIR ?? path.join(LABNODE_DIR, 'keys');
 
-// The token comes from --token, CCL_NODE_TOKEN, or keys/<node>.token (where `npm run seed`
-// leaves the demo node's). There is no default: a token in the repo is a token for everyone.
+// The token comes from --token, CCL_NODE_TOKEN, the file named by CCL_NODE_TOKEN_FILE, or
+// keys/<node>.token (where `npm run seed` leaves the demo node's). There is no default: a token
+// in the repo is a token for everyone.
 function token() {
   const given = arg('token') ?? process.env.CCL_NODE_TOKEN;
   if (given) return given;
-  const file = path.join(keysDir, `${node}.token`);
+  const file = process.env.CCL_NODE_TOKEN_FILE ?? path.join(keysDir, `${node}.token`);
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : '';
 }
 
@@ -38,5 +39,7 @@ export const config = {
   pcf: arg('pcf') ?? process.env.CCL_PCF ?? path.join(REPO_DIR, 'rtl', 'boards', 'icebreaker.pcf'),
   keysDir,
   workDir: process.env.CCL_WORK_DIR ?? path.join(LABNODE_DIR, '.work'),
+  // The node's own dashboard (src/dashboard.ts); 0 leaves it off
+  dashboardPort: Number(arg('dashboard-port') ?? process.env.CCL_DASHBOARD_PORT ?? 0),
   info: process.argv.includes('--info'),
 };

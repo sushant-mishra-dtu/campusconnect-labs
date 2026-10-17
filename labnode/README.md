@@ -27,11 +27,13 @@ yosys (`@yowasp/yosys`) and, in sim mode, nextpnr-ice40 and icepack (`@yowasp/ne
 |---|---|---|
 | `--server=` | `CCL_SERVER` | `ws://localhost:4000/ws/node` |
 | `--node=` | `CCL_NODE` | `iiitd-01` |
-| `--token=` | `CCL_NODE_TOKEN` | contents of `keys/<node>.token` (written by `npm run seed`); no built-in token |
+| `--token=` | `CCL_NODE_TOKEN` | contents of the file `CCL_NODE_TOKEN_FILE` names, else of `keys/<node>.token` (written by `npm run seed`); no built-in token |
 | `--mode=` | `CCL_MODE` | `sim` |
 | `--sim-target=` | `CCL_SIM_TARGET` | `bitstream` (or `netlist`: skip place and route, simulate yosys's netlist) |
 | `--serial=` | `CCL_SERIAL` | none (required for `hw`, e.g. `COM5` or `/dev/ttyACM0`) |
 | `--pcf=` | `CCL_PCF` | `rtl/boards/icebreaker.pcf` |
+
+Sim mode needs Icarus Verilog 12 or newer; the agent refuses to start on an older one. To run the node in Docker, see [docs/DEPLOY.md](../docs/DEPLOY.md).
 
 ## Pairing and key pinning
 

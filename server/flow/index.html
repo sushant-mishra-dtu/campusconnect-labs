@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platform flow · CampusConnect Labs</title>
+<style>
+  :root {
+    --bg: #0a1016; --panel: #101923; --panel-2: #142030; --line: #213041; --line-2: #2c3f53;
+    --text: #dbe5ec; --muted: #8697a7; --faint: #5a6b7c;
+    --http: #5ab0ff; --db: #c792ea; --socket: #5fd1b5; --job: #ffcb6b; --stage: #ff9d6c;
+    --log: #6f8193; --verdict: #b5e57c; --check: #6fd8ff; --push: #8fa8ff; --error: #ff5d73;
+    --ok: #6fdc8c; --warn: #ffcb6b; --bad: #ff5d73;
+    --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); display: grid; grid-template-rows: auto minmax(0, 1fr) minmax(0, 0.85fr); }
+  header { display: flex; align-items: center; gap: 22px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: 0.01em; }
+  header h1 span { color: var(--muted); font-weight: 500; }
+  .live { display: inline-flex; align-items: center; gap: 7px; font: 12px var(--mono); color: var(--muted); }
+  .live i { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 3px rgba(255,93,115,0.15); }
+  .live.on i { background: var(--ok); box-shadow: 0 0 0 3px rgba(111,220,140,0.18); animation: beat 1.6s infinite; }
+  @keyframes beat { 50% { box-shadow: 0 0 0 6px rgba(111,220,140,0.05); } }
+  .stats { display: flex; gap: 18px; margin-left: auto; flex-wrap: wrap; }
+  .stat { display: flex; flex-direction: column; min-width: 64px; }
+  .stat b { font: 600 17px var(--mono); font-variant-numeric: tabular-nums; }
+  .stat small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  #diagram { position: relative; min-height: 0; padding: 6px 12px 0; }
+  svg { width: 100%; height: 100%; display: block; }
+  .box rect { fill: var(--panel); stroke: var(--line-2); stroke-width: 1.4; transition: stroke 0.25s, fill 0.25s; }
+  .box.hit rect { stroke: #ffffff; fill: var(--panel-2); }
+  .box.off { opacity: 0.45; }
+  .box .t { fill: var(--text); font: 600 15px var(--sans); }
+  .box .s { fill: var(--muted); font: 12px var(--mono); }
+  .box .k { font: 600 10.5px var(--mono); letter-spacing: 0.06em; }
+  .edge { fill: none; stroke: var(--line-2); stroke-width: 1.6; }
+  .elabel { fill: var(--faint); font: 11px var(--mono); }
+  .particle { filter: drop-shadow(0 0 5px currentColor); }
+
+  .bottom { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 0; border-top: 1px solid var(--line); min-height: 0; }
+  section { display: flex; flex-direction: column; min-height: 0; }
+  section + section { border-left: 1px solid var(--line); }
+  section h2 { margin: 0; padding: 10px 16px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .scroll { overflow-y: auto; min-height: 0; flex: 1; }
+
+  .attempt { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .attempt .top { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .attempt .id { font: 600 13px var(--mono); }
+  .attempt .meta { color: var(--muted); font-size: 12.5px; }
+  .attempt .total { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
+  .pipe { display: flex; gap: 4px; margin-top: 9px; flex-wrap: wrap; }
+  .pill { font: 11px var(--mono); padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--faint); white-space: nowrap; }
+  .pill.done { color: var(--text); border-color: #3b5a73; background: #16283a; }
+  .pill.active { color: #0a1016; background: var(--stage); border-color: var(--stage); }
+  .pill.pass { color: #0a1016; background: var(--ok); border-color: var(--ok); }
+  .pill.fail { color: #0a1016; background: var(--bad); border-color: var(--bad); }
+  .empty { color: var(--faint); padding: 16px; font-size: 13px; }
+
+  .chips { display: flex; gap: 5px; flex-wrap: wrap; margin-left: auto; text-transform: none; letter-spacing: 0; }
+  .chip { font: 11px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; background: transparent; cursor: pointer; opacity: 0.95; }
+  .chip.off { opacity: 0.3; }
+  .chip:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .row { display: grid; grid-template-columns: 92px 64px 150px minmax(0, 1fr); gap: 10px; padding: 4px 16px; font: 12px/1.5 var(--mono); border-bottom: 1px solid rgba(33,48,65,0.6); align-items: baseline; }
+  .row .tm { color: var(--faint); font-variant-numeric: tabular-nums; }
+  .row .kd { font-weight: 600; }
+  .row .ft { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .lb { overflow-wrap: anywhere; }
+  .row.bad .lb { color: var(--bad); }
+  .row.new { animation: flash 1.2s ease-out; }
+  @keyframes flash { from { background: rgba(143,168,255,0.14); } to { background: transparent; } }
+  .clear { font: 11px var(--mono); color: var(--muted); background: none; border: 1px solid var(--line-2); border-radius: 6px; padding: 2px 8px; cursor: pointer; text-transform: none; letter-spacing: 0; }
+  @media (prefers-reduced-motion: reduce) { .row.new, .live.on i { animation: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>CampusConnect Labs <span>· platform data flow</span></h1>
+  <span class="live" id="live"><i></i><span>connecting</span></span>
+  <div class="stats">
+    <div class="stat"><b id="s-tabs">–</b><small>browser tabs</small></div>
+    <div class="stat"><b id="s-nodes">–</b><small>nodes online</small></div>
+    <div class="stat"><b id="s-flight">–</b><small>in flight</small></div>
+    <div class="stat"><b id="s-rate">–</b><small>events / min</small></div>
+    <div class="stat"><b id="s-proofs">–</b><small>proofs</small></div>
+    <div class="stat"><b id="s-conns">–</b><small>connections</small></div>
+    <div class="stat"><b id="s-up">–</b><small>uptime</small></div>
+  </div>
+</header>
+
+<div id="diagram">
+  <svg id="svg" viewBox="0 0 1200 540" role="img" aria-label="Live diagram of data moving between browsers, the API, the WebSocket hub, the verdict check, the database and the lab nodes">
+    <g id="edges"></g>
+    <g id="labels"></g>
+    <g id="boxes"></g>
+    <g id="particles"></g>
+  </svg>
+</div>
+
+<div class="bottom">
+  <section>
+    <h2>Attempts <span style="text-transform:none;letter-spacing:0;font-weight:400">· job → lab node → signed verdict → checks → recorded</span></h2>
+    <div class="scroll" id="attempts"><div class="empty">No attempts yet. When a student presses “Build, flash &amp; examine”, its journey shows here.</div></div>
+  </section>
+  <section>
+    <h2>Event stream <span class="chips" id="chips"></span> <button class="clear" id="clear" type="button">clear</button></h2>
+    <div class="scroll" id="stream"></div>
+  </section>
+</div>
+
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const KINDS = ['http', 'db', 'socket', 'job', 'stage', 'log', 'verdict', 'check', 'push', 'error'];
+const color = (k) => getComputedStyle(document.documentElement).getPropertyValue('--' + k).trim() || '#fff';
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, text) => {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+};
+
+// ---------------------------------------------------------------- diagram
+const BOXES = {
+  browser: { x: 30, y: 200, w: 220, h: 132, title: 'Browsers', kind: 'socket' },
+  api: { x: 340, y: 40, w: 240, h: 116, title: 'API · Express', kind: 'http' },
+  hub: { x: 340, y: 268, w: 240, h: 116, title: 'WebSocket hub', kind: 'socket' },
+  verify: { x: 340, y: 432, w: 240, h: 92, title: 'Verdict check', kind: 'check' },
+  db: { x: 668, y: 40, w: 220, h: 116, title: 'SQLite', kind: 'db' },
+};
+const STATIC_EDGES = {
+  'browser>api': 'M250,240 C300,240 290,98 340,98',
+  'browser>hub': 'M250,300 C300,300 290,326 340,326',
+  'api>db': 'M580,98 L668,98',
+  'hub>db': 'M580,292 C640,292 700,230 728,156',
+  'hub>verify': 'M460,384 L460,432',
+  'verify>db': 'M580,478 C760,478 828,330 828,156',
+};
+const EDGE_LABELS = [
+  [150, 186, 'HTTP · JSON'], [262, 352, 'WebSocket'], [594, 88, 'SQL'], [712, 204, 'stage updates'],
+  [470, 414, 'signature, nonce, counter, booking'], [600, 504, 'proofs, badges, connections'],
+];
+const boxEls = {};
+const edgeEls = {};
+let nodeList = [];
+
+function drawBox(id, b) {
+  const g = el('g', { class: 'box', id: 'box-' + id.replace(':', '-') });
+  g.append(el('rect', { x: b.x, y: b.y, width: b.w, height: b.h, rx: 12 }));
+  g.append(el('text', { class: 't', x: b.x + 16, y: b.y + 28 }, b.title));
+  const lines = [];
+  for (let i = 0; i < (b.lines ?? 3); i++) {
+    const t = el('text', { class: 's', x: b.x + 16, y: b.y + 50 + i * 18 }, '');
+    g.append(t);
+    lines.push(t);
+  }
+  const tag = el('text', { class: 'k', x: b.x + b.w - 14, y: b.y + 26, 'text-anchor': 'end', fill: color(b.kind) }, b.tag ?? '');
+  g.append(tag);
+  $('boxes').append(g);
+  boxEls[id] = { g, lines, tag, b };
+}
+
+function drawStatic() {
+  for (const [k, d] of Object.entries(STATIC_EDGES)) {
+    const p = el('path', { class: 'edge', d });
+    $('edges').append(p);
+    edgeEls[k] = p;
+  }
+  for (const [x, y, t] of EDGE_LABELS) $('labels').append(el('text', { class: 'elabel', x, y }, t));
+  for (const [id, b] of Object.entries(BOXES)) drawBox(id, b);
+  boxEls.api.lines[0].textContent = 'REST: sign-in, bookings,';
+  boxEls.api.lines[1].textContent = 'attempts, challenges, graph';
+  boxEls.hub.lines[0].textContent = 'jobs out, stages + logs in,';
+  boxEls.hub.lines[1].textContent = 'live pushes to browsers';
+  boxEls.verify.lines[0].textContent = 'ECDSA P-256 + 4 more checks';
+  boxEls.db.lines[0].textContent = 'users, bookings, attempts,';
+  boxEls.db.lines[1].textContent = 'badges, connections';
+}
+
+// Same machine or another one; the platform judges it from the address the node dialled in from
+const where = (n) => (n.address ? `${n.local ? 'this machine' : 'other machine'} · ${n.address}` : '');
+
+// Shrinks an SVG text's font until it fits, then cuts it with an ellipsis as a last resort
+function fitText(t, max) {
+  t.style.fontSize = '';
+  let size = parseFloat(getComputedStyle(t).fontSize);
+  while (t.getComputedTextLength() > max && size > 10) {
+    size -= 0.5;
+    t.style.fontSize = size + 'px';
+  }
+  const full = t.textContent;
+  for (let n = full.length - 1; n > 1 && t.getComputedTextLength() > max; n--) t.textContent = full.slice(0, n) + '…';
+}
+
+function drawNodes(nodes) {
+  const sig = nodes.map((n) => n.id).join(',');
+  if (sig !== nodeList.map((n) => n.id).join(',')) {
+    for (const n of nodeList) {
+      boxEls['node:' + n.id]?.g.remove();
+      delete boxEls['node:' + n.id];
+      edgeEls['hub>node:' + n.id]?.remove();
+      delete edgeEls['hub>node:' + n.id];
+    }
+    const h = 96, gap = 14, total = nodes.length * h + Math.max(0, nodes.length - 1) * gap;
+    const y0 = Math.max(24, 326 - total / 2);
+    nodes.forEach((n, i) => {
+      const y = y0 + i * (h + gap);
+      const p = el('path', { class: 'edge', d: `M580,326 C780,326 760,${y + h / 2} 940,${y + h / 2}` });
+      $('edges').append(p);
+      edgeEls['hub>node:' + n.id] = p;
+      drawBox('node:' + n.id, { x: 940, y, w: 240, h, title: n.id, kind: 'job', lines: 3 });
+    });
+    if (nodes.length && !$('nodelabel')) $('labels').append(el('text', { class: 'elabel', id: 'nodelabel', x: 720, y: 316 }, 'WebSocket · node dials out'));
+  }
+  nodeList = nodes;
+  for (const n of nodes) {
+    const b = boxEls['node:' + n.id];
+    if (!b) continue;
+    b.g.classList.toggle('off', !n.online);
+    b.tag.textContent = (n.online ? '● ' : '○ ') + (n.kind === 'esp32' ? 'SILICON' : 'SIM');
+    b.tag.setAttribute('fill', n.online ? (n.kind === 'esp32' ? color('verdict') : color('job')) : color('log'));
+    b.lines[0].textContent = n.name + ' · ' + n.college;
+    b.lines[1].textContent = n.online ? where(n) : 'offline';
+    b.lines[2].textContent = n.fingerprint ? `key ${n.fingerprint.slice(0, 9)}… · ctr ${Math.max(0, n.counter)}` : 'no examiner key pinned';
+    for (const t of b.lines) fitText(t, b.b.w - 30);
+  }
+}
+
+function edgeFor(from, to) {
+  if (edgeEls[from + '>' + to]) return { p: edgeEls[from + '>' + to], rev: false };
+  if (edgeEls[to + '>' + from]) return { p: edgeEls[to + '>' + from], rev: true };
+  return null;
+}
+
+let live = 0;
+function hit(id) {
+  const b = boxEls[id];
+  if (!b) return;
+  b.g.classList.add('hit');
+  clearTimeout(b.timer);
+  b.timer = setTimeout(() => b.g.classList.remove('hit'), 380);
+}
+
+function fire(e) {
+  const route = edgeFor(e.from, e.to);
+  if (!route || reduced || live > 90) { hit(e.to); return; }
+  const len = route.p.getTotalLength();
+  const c = el('circle', { r: e.kind === 'log' ? 3 : 5.5, class: 'particle', fill: color(e.kind), style: `color:${color(e.kind)}` });
+  $('particles').append(c);
+  live++;
+  const dur = e.kind === 'log' ? 520 : 760, t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / dur), ease = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    const pt = route.p.getPointAtLength((route.rev ? 1 - ease : ease) * len);
+    c.setAttribute('cx', pt.x);
+    c.setAttribute('cy', pt.y);
+    if (k < 1) requestAnimationFrame(step);
+    else { c.remove(); live--; hit(e.to); }
+  };
+  requestAnimationFrame(step);
+}
+
+// ---------------------------------------------------------------- state
+function fmtUp(ms) {
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : m ? `${m}m ${s % 60}s` : `${s}s`;
+}
+let lastState = null;
+function applyState(s) {
+  lastState = s;
+  $('s-tabs').textContent = s.browsers.tabs;
+  $('s-nodes').textContent = `${s.nodes.filter((n) => n.online).length}/${s.nodes.length}`;
+  $('s-flight').textContent = s.inFlight.length;
+  $('s-proofs').textContent = s.totals.proofs;
+  $('s-conns').textContent = s.totals.connections;
+  $('s-up').textContent = fmtUp(s.uptime);
+  const people = s.browsers.people;
+  boxEls.browser.lines[0].textContent = `${s.browsers.tabs} tab${s.browsers.tabs === 1 ? '' : 's'} open`;
+  boxEls.browser.lines[1].textContent = people.length ? people.join(', ') : 'nobody signed in';
+  fitText(boxEls.browser.lines[1], BOXES.browser.w - 30);
+  boxEls.browser.lines[2].textContent = s.browsers.anonymous ? `+ ${s.browsers.anonymous} signed out` : '';
+  const up = s.nodes.filter((n) => n.online).length;
+  boxEls.hub.lines[2].textContent = `${up} node${up === 1 ? '' : 's'} · ${s.browsers.tabs} browser socket${s.browsers.tabs === 1 ? '' : 's'}`;
+  boxEls.db.lines[2].textContent = `${s.totals.people} people · ${s.totals.attempts} attempts`;
+  drawNodes(s.nodes);
+  for (const f of s.inFlight) {
+    const a = attempts.get(f.id);
+    if (a) Object.assign(a, { user: f.user, test: a.test ?? f.test, node: a.node ?? f.node });
+  }
+  renderAttempts();
+}
+
+// ---------------------------------------------------------------- attempts
+const STAGES = ['dispatched', 'received', 'build', 'flash', 'examine', 'sign', 'verify', 'recorded'];
+const attempts = new Map();
+function attemptOf(id) {
+  if (!attempts.has(id)) attempts.set(id, { id, t0: null, at: {}, result: null, checks: 0, stage: null, user: null, test: null, node: null });
+  return attempts.get(id);
+}
+function track(e) {
+  if (!e.attempt) return;
+  const a = attemptOf(e.attempt);
+  const mark = (s) => { if (!a.at[s]) a.at[s] = e.t; a.stage = s; };
+  if (e.kind === 'job') {
+    a.t0 = e.t; mark('dispatched');
+    const m = /· (\S+) · nonce/.exec(e.label);
+    if (m) a.test = m[1];
+    a.node = e.to.replace('node:', '');
+  } else if (e.kind === 'stage') {
+    const s = e.label.split(' · ').pop();
+    if (STAGES.includes(s)) mark(s);
+  } else if (e.kind === 'verdict') {
+    mark('sign');
+    mark('verify');
+  } else if (e.kind === 'check') {
+    if (e.ok) a.checks++;
+    else { a.result = 'rejected'; mark('verify'); }
+  } else if (e.kind === 'db' && /recorded/.test(e.label)) {
+    mark('recorded');
+    a.result = /recorded as rejected/.test(e.label) ? 'rejected' : /: pass/.test(e.label) ? 'pass' : 'fail';
+  } else if (e.kind === 'error') {
+    a.result = 'error';
+  }
+  a.last = e.t;
+}
+
+let renderQueued = false;
+function renderAttempts() {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    const list = [...attempts.values()].filter((a) => a.t0).sort((x, y) => y.t0 - x.t0).slice(0, 8);
+    const box = $('attempts');
+    if (!list.length) return;
+    box.replaceChildren();
+    for (const a of list) {
+      const card = document.createElement('div');
+      card.className = 'attempt';
+      const top = document.createElement('div');
+      top.className = 'top';
+      const id = document.createElement('span');
+      id.className = 'id';
+      id.textContent = a.id;
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = [a.test, a.node && 'on ' + a.node, a.user && 'by ' + a.user].filter(Boolean).join(' · ');
+      const total = document.createElement('span');
+      total.className = 'total';
+      const end = a.at.recorded ?? (a.result ? a.last : Date.now());
+      total.textContent = a.t0 ? `${((end - a.t0) / 1000).toFixed(2)} s${a.result ? ' · ' + a.result.toUpperCase() : ''}` : '';
+      top.append(id, meta, total);
+      const pipe = document.createElement('div');
+      pipe.className = 'pipe';
+      const reached = STAGES.filter((s) => a.at[s]);
+      const lastReached = reached[reached.length - 1];
+      for (const s of STAGES) {
+        const p = document.createElement('span');
+        p.className = 'pill';
+        let label = s;
+        if (s === 'verify' && a.checks) label += ` ${Math.min(a.checks, 5)}/5`;
+        if (a.at[s]) {
+          p.classList.add('done');
+          if (a.t0 && s !== 'dispatched') label += ` +${((a.at[s] - a.t0) / 1000).toFixed(1)}s`;
+        }
+        if (s === lastReached && !a.result) p.classList.add('active');
+        if (s === 'recorded' && a.result === 'pass') p.classList.add('pass');
+        if (a.result && a.result !== 'pass' && s === lastReached) p.classList.add('fail');
+        p.textContent = label;
+        pipe.append(p);
+      }
+      card.append(top, pipe);
+      box.append(card);
+    }
+  });
+}
+
+// ---------------------------------------------------------------- event stream
+const shown = new Set(KINDS);
+const times = [];
+function buildChips() {
+  for (const k of KINDS) {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.type = 'button';
+    b.textContent = k;
+    b.style.color = color(k);
+    b.onclick = () => {
+      if (shown.has(k)) shown.delete(k); else shown.add(k);
+      b.classList.toggle('off', !shown.has(k));
+      for (const r of $('stream').children) r.hidden = !shown.has(r.dataset.kind);
+    };
+    $('chips').append(b);
+  }
+  $('clear').onclick = () => $('stream').replaceChildren();
+}
+const label = (p) => (p.startsWith('node:') ? p.slice(5) : p);
+function addRow(e, fresh) {
+  const r = document.createElement('div');
+  r.className = 'row' + (e.ok === false ? ' bad' : '') + (fresh ? ' new' : '');
+  r.dataset.kind = e.kind;
+  r.hidden = !shown.has(e.kind);
+  const d = new Date(e.t);
+  const tm = document.createElement('span');
+  tm.className = 'tm';
+  tm.textContent = d.toLocaleTimeString('en-GB', { hour12: false }) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+  const kd = document.createElement('span');
+  kd.className = 'kd';
+  kd.style.color = color(e.kind);
+  kd.textContent = e.kind;
+  const ft = document.createElement('span');
+  ft.className = 'ft';
+  ft.textContent = `${label(e.from)} → ${label(e.to)}`;
+  const lb = document.createElement('span');
+  lb.className = 'lb';
+  lb.textContent = e.label;
+  r.append(tm, kd, ft, lb);
+  const s = $('stream');
+  s.prepend(r);
+  while (s.children.length > 400) s.lastChild.remove();
+}
+
+function onEvent(e, fresh) {
+  addRow(e, fresh);
+  track(e);
+  if (fresh) {
+    fire(e);
+    times.push(e.t);
+  }
+  renderAttempts();
+}
+
+setInterval(() => {
+  const cut = Date.now() - 60000;
+  while (times.length && times[0] < cut) times.shift();
+  $('s-rate').textContent = times.length;
+  if (lastState) $('s-up').textContent = fmtUp(lastState.uptime + (Date.now() - lastState.now));
+  if ([...attempts.values()].some((a) => a.t0 && !a.result)) renderAttempts();
+}, 1000);
+
+// ---------------------------------------------------------------- wire
+drawStatic();
+buildChips();
+const src = new EventSource('/api/flow/stream');
+src.addEventListener('open', () => { $('live').className = 'live on'; $('live').lastChild.textContent = 'live'; });
+src.addEventListener('error', () => { $('live').className = 'live'; $('live').lastChild.textContent = 'reconnecting'; });
+src.addEventListener('snapshot', (m) => {
+  const { events, state } = JSON.parse(m.data);
+  $('stream').replaceChildren();
+  attempts.clear();
+  applyState(state);
+  for (const e of events) onEvent(e, false);
+});
+src.addEventListener('state', (m) => applyState(JSON.parse(m.data)));
+src.addEventListener('flow', (m) => onEvent(JSON.parse(m.data), true));
+</script>
+</body>
+</html>

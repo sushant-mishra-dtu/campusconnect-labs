@@ -9,7 +9,11 @@ export { DB_PATH };
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 export const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+// Every log line and stage a lab node sends is its own commit. With the default synchronous=FULL
+// each one waits for the disk: 147 ms on the demo server's hard drive, which put the console seconds
+// behind the node. NORMAL is SQLite's advice for WAL: a power cut can lose the last few commits
+// but never corrupts the database.
+db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;');
 
 // A connection only exists when something happened: a challenge passed, a board
 // lent, a referral or mentorship given. There is no "follow" edge on purpose.

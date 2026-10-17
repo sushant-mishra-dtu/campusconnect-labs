@@ -28,3 +28,6 @@ Thumbs.db
 
 # local editor / agent config
 .claude/
+tools/shots/
+tools/node_modules/
+tools/package*.json
