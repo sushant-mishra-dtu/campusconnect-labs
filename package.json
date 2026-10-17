@@ -13,7 +13,8 @@
     "labnode": "npm run start -w labnode",
     "build": "npm run build -w web",
     "start": "npm run start -w server",
-    "check:rtl": "node rtl/scripts/check-all.mjs"
+    "check:rtl": "node rtl/scripts/check-all.mjs",
+    "check:ice40": "node rtl/scripts/check-ice40.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

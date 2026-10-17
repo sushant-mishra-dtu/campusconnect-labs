@@ -47,3 +47,9 @@ npm run check:rtl
 ```
 
 This runs each `reference.v` (must pass) and each `starter.v` (must fail) through its testbench. It uses a native `iverilog` if one is on `PATH`, otherwise the one inside WSL.
+
+```bash
+npm run check:ice40
+```
+
+This builds each `reference.v` and `starter.v` for the real board, with the same yosys → nextpnr-ice40 → icepack steps a hardware lab node runs (UP5K-SG48, `boards/icebreaker.pcf`, 12 MHz). Both must produce a bitstream that meets timing. Without `nextpnr-ice40` and `icepack` installed, it falls back to the WebAssembly builds from `npm install --no-save @yowasp/nextpnr-ice40`.

@@ -34,7 +34,7 @@ The PC runs `labnode` in `hw` mode. It never decides a result; it only builds, f
 | `uart_tx` | FPGA → ESP | 25 | P2_2 | 9 (edge capture) |
 | GND | | | any PMOD GND | GND |
 
-The FPGA side is in [`rtl/boards/icebreaker.pcf`](../rtl/boards/icebreaker.pcf), the ESP32 side in [`examiner/src/pins.h`](../examiner/src/pins.h). Package pins follow the iCEBreaker v1.0 reference pin file; check them against your board revision. ESP32 pins avoid the strapping pins (0, 3, 45, 46), USB (19, 20) and the octal-PSRAM pins (35–37).
+The FPGA side is in [`rtl/boards/icebreaker.pcf`](../rtl/boards/icebreaker.pcf), the ESP32 side in [`examiner/src/pins.h`](../examiner/src/pins.h). Package pins match the iCEBreaker v1.0 reference pin file; check them against your board revision. If the snap-off section is still attached, its LED2 and LED3 share the two UART pins and flicker with the traffic, which is harmless. ESP32 pins avoid the strapping pins (0, 3, 45, 46), USB (19, 20) and the octal-PSRAM pins (35–37).
 
 A different iCE40 board (UPduino, Fomu-class boards) only needs a new `.pcf`; pass it with `--pcf=`.
 
@@ -44,11 +44,21 @@ A different iCE40 board (UPduino, Fomu-class boards) only needs a new `.pcf`; pa
 sudo apt install yosys nextpnr-ice40 fpga-icestorm iverilog   # or the OSS CAD Suite
 ```
 
+Check that every challenge builds for the board before plugging anything in:
+
+```bash
+npm run check:ice40
+```
+
+Without sudo, `npm install --no-save @yowasp/nextpnr-ice40` gets WebAssembly builds of nextpnr-ice40 and icepack that the check uses instead. They don't include `iceprog`, so the lab node itself still needs the real toolchain.
+
 Then:
 
 ```bash
 npm run labnode -- --node=<id> --token=<token> --mode=hw --serial=/dev/ttyACM0
 ```
+
+On Windows, `--serial=COM5` is opened natively, but `iceprog` runs in WSL when it's not on `PATH`, and WSL can't see USB devices by default. Either attach the iCEBreaker to WSL with [usbipd-win](https://github.com/dorssel/usbipd-win) (`usbipd bind` then `usbipd attach --wsl`; attach only the iCEBreaker and leave the ESP32 on Windows), or use the Windows OSS CAD Suite and give the iCEBreaker's FTDI interface 0 a WinUSB driver with Zadig.
 
 ## How each challenge is measured on the pins
 
@@ -72,3 +82,5 @@ Hardening for production (not done in the hackathon build): enable flash encrypt
 ## Status
 
 The firmware compiles cleanly with `pio run` in `examiner/` (official `espressif32` platform 7.1.3, Arduino-ESP32 2.0.17, mbedTLS 2.28; no warnings with `-Wall -Wextra`; 6.6% RAM, 11.3% flash) but has **not** been flashed to a board yet. `signer.cpp` also has a branch for the mbedTLS 3.x API (Arduino-ESP32 3.x); that branch has not been compiled. The sim path is what has been run end to end.
+
+`npm run check:ice40` passes. All four reference designs and all four starters go through yosys → nextpnr-ice40 → icepack for the UP5K-SG48 with this pin map, with no warnings, and produce a 104,090-byte bitstream. The largest design, `uart-nonce`, uses 245 of 5,280 logic cells and routes at 51.6 MHz against the 12 MHz clock. Those builds used nextpnr 0.11 and icestorm from YoWASP with yosys 0.33. None of the bitstreams has been flashed yet.
