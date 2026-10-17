@@ -194,7 +194,8 @@ api.post('/nodes', requireRole('club'), (req, res) => {
   const u = req.user!;
   if (!u.college_id) throw new HttpError(400, 'Your club account has no college');
   const name = String(req.body?.name ?? '').trim() || `${u.org ?? 'Club'} bench`;
-  const board = String(req.body?.board ?? '').trim() || 'iCE40 UP5K (iCEBreaker) + ESP32-S3 examiner';
+  // Every node in this build simulates its board (docs/SIMULATION.md), so say so unless told otherwise
+  const board = String(req.body?.board ?? '').trim() || 'Simulated iCE40 UP5K (iCEBreaker pinout), no physical board';
   const base = u.college_id.replace(/[^a-z0-9]/gi, '').toLowerCase();
   const count = one<{ n: number }>('SELECT COUNT(*) AS n FROM nodes WHERE college_id = ?', u.college_id)!.n;
   let id = `${base}-${String(count + 1).padStart(2, '0')}`;
