@@ -25,3 +25,6 @@ examiner/.vscode/
 
 .DS_Store
 Thumbs.db
+
+# local editor / agent config
+.claude/

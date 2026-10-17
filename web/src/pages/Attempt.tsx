@@ -234,7 +234,7 @@ export function Attempt() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         {/* editor */}
-        <div className="flex min-h-[560px] flex-col overflow-hidden rounded-xl border border-line bg-card">
+        <div className="flex h-[560px] flex-col overflow-hidden rounded-xl border border-line bg-card lg:h-[calc(100vh-9.5rem)] lg:min-h-[560px]">
           <div className="flex items-center gap-1 border-b border-line px-2">
             {(['code', 'spec'] as const).map((t) => (
               <button
@@ -275,7 +275,7 @@ export function Attempt() {
         </div>
 
         {/* board + console */}
-        <div className="flex min-h-[560px] flex-col overflow-hidden rounded-xl bg-board text-white">
+        <div className="flex min-h-[560px] flex-col overflow-hidden rounded-xl bg-board text-white lg:h-[calc(100vh-9.5rem)]">
           <div className="border-b border-white/10 p-4">
             <div className="flex flex-wrap items-center gap-3">
               <label className="min-w-0 flex-1">
@@ -335,12 +335,12 @@ export function Attempt() {
             <Pipeline attempt={attempt} />
           </div>
 
-          <div className="min-h-0 flex-1">
+          <div className="min-h-[180px] flex-1">
             <Console lines={lines} placeholder="Console output from the platform, the lab node and the examiner shows up here." />
           </div>
 
           {attempt && !running && (
-            <div className="border-t border-white/10 p-4">
+            <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-white/10 p-4">
               <Verdict a={attempt} />
             </div>
           )}
