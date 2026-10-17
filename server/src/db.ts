@@ -1,10 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { fileURLToPath } from 'node:url';
+import { DB_PATH } from './paths.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-export const DB_PATH = process.env.CCL_DB ?? path.join(here, '..', 'data', 'ccl.db');
+export { DB_PATH };
 
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
