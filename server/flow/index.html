@@ -142,7 +142,7 @@ const STATIC_EDGES = {
 };
 const EDGE_LABELS = [
   [150, 186, 'HTTP · JSON'], [262, 352, 'WebSocket'], [594, 88, 'SQL'], [712, 204, 'stage updates'],
-  [470, 414, 'signature, nonce, counter, booking'], [600, 504, 'proofs, badges, connections'],
+  [470, 414, 'signature · nonce · target · counter · booking'], [600, 504, 'proofs, badges, connections'],
 ];
 const boxEls = {};
 const edgeEls = {};
@@ -176,7 +176,7 @@ function drawStatic() {
   boxEls.api.lines[1].textContent = 'attempts, challenges, graph';
   boxEls.hub.lines[0].textContent = 'jobs out, stages + logs in,';
   boxEls.hub.lines[1].textContent = 'live pushes to browsers';
-  boxEls.verify.lines[0].textContent = 'ECDSA P-256 + 4 more checks';
+  boxEls.verify.lines[0].textContent = 'every check before any write';
   boxEls.db.lines[0].textContent = 'users, bookings, attempts,';
   boxEls.db.lines[1].textContent = 'badges, connections';
 }
@@ -362,7 +362,7 @@ function renderAttempts() {
         const p = document.createElement('span');
         p.className = 'pill';
         let label = s;
-        if (s === 'verify' && a.checks) label += ` ${Math.min(a.checks, 5)}/5`;
+        if (s === 'verify' && a.checks) label += ` ${a.checks} ✓`;
         if (a.at[s]) {
           p.classList.add('done');
           if (a.t0 && s !== 'dispatched') label += ` +${((a.at[s] - a.t0) / 1000).toFixed(1)}s`;

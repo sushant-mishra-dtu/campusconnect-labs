@@ -180,7 +180,8 @@ function drawDiagram(state) {
   }
   const last = pos[n - 1];
   edge(P[n - 1].id + '>agent', `M${last.x},340 C${last.x - 80},340 600,240 554,240`);
-  $('labels').append(el('text', { class: 'elabel', x: 566, y: 300 }, 'signed verdict'));
+  // Under the agent, left of the curve back from the last station, whatever the pipeline's length
+  $('labels').append(el('text', { class: 'elabel', x: 572, y: 306, 'text-anchor': 'end' }, 'signed verdict'));
 }
 
 function edgeFor(from, to) {
