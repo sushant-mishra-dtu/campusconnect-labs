@@ -1,0 +1,8 @@
+{
+  "id": "uart-nonce",
+  "title": "UART nonce echo",
+  "summary": "Receive a nonce over UART at 115200 baud, buffer it, and send it back framed by a sync byte. The examiner measures your baud rate on the wire.",
+  "difficulty": "advanced",
+  "skills": ["uart", "serial-protocols", "fsm", "buffering", "clock-division", "timing"],
+  "maxSeconds": 30
+}

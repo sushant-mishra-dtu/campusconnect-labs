@@ -1,0 +1,8 @@
+{
+  "id": "pwm-duty",
+  "title": "1 kHz PWM from the switches",
+  "summary": "Generate a 1 kHz PWM on led[0] whose duty cycle is set by the switches. The examiner measures frequency and duty on the pin.",
+  "difficulty": "intermediate",
+  "skills": ["counters", "pwm", "clock-division", "timing"],
+  "maxSeconds": 30
+}

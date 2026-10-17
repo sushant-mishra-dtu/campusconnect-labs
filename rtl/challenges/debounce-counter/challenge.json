@@ -1,0 +1,8 @@
+{
+  "id": "debounce-counter",
+  "title": "Debounced press counter",
+  "summary": "Count real button presses on a bouncy, glitchy input and show the count on the LEDs.",
+  "difficulty": "intermediate",
+  "skills": ["synchronizers", "debouncing", "counters", "fsm"],
+  "maxSeconds": 40
+}
