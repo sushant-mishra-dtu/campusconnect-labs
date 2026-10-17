@@ -1,0 +1,21 @@
+{
+  "name": "campusconnect-labs",
+  "private": true,
+  "description": "A professional network where people connect over what they have proven on real hardware.",
+  "workspaces": [
+    "server",
+    "web",
+    "labnode"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c green,cyan \"npm run dev -w server\" \"npm run dev -w web\"",
+    "seed": "npm run seed -w server",
+    "labnode": "npm run start -w labnode",
+    "build": "npm run build -w web",
+    "start": "npm run start -w server",
+    "check:rtl": "node rtl/scripts/check-all.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

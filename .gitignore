@@ -1,0 +1,27 @@
+node_modules/
+dist/
+*.log
+.env
+.env.*
+
+# server database
+server/data/
+
+# lab node: examiner keys never leave the node
+labnode/keys/
+labnode/.work/
+
+# simulation / synthesis outputs
+*.vvp
+*.vcd
+*.asc
+*.bin
+*.json.bak
+rtl/**/build/
+
+# ESP32 firmware build
+examiner/.pio/
+examiner/.vscode/
+
+.DS_Store
+Thumbs.db
