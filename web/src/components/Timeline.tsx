@@ -2,10 +2,11 @@ import type { Booking } from '../api';
 import { cx, fmtTime } from './ui';
 
 const HOUR = 60 * 60_000;
+const IST_OFFSET = 5.5 * HOUR; // ticks land on whole IST hours
 
 // A 12-hour strip starting an hour before now, with every booking on the board.
 export function Timeline({ bookings, now, myId }: { bookings: Booking[]; now: number; myId?: string }) {
-  const start = Math.floor(now / HOUR) * HOUR - HOUR;
+  const start = Math.floor((now + IST_OFFSET) / HOUR) * HOUR - IST_OFFSET - HOUR;
   const end = start + 12 * HOUR;
   const pct = (t: number) => ((Math.min(Math.max(t, start), end) - start) / (end - start)) * 100;
   const ticks = Array.from({ length: 7 }, (_, i) => start + i * 2 * HOUR);

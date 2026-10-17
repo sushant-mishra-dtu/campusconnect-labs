@@ -183,7 +183,7 @@ export function Network() {
             <svg width={width} height={HEIGHT} onPointerMove={onPointerMove} onPointerUp={onPointerUp} className="block touch-none select-none">
               <defs>
                 {TYPES.map((t) => (
-                  <marker key={t} id={`arrow-${t}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <marker key={t} id={`arrow-${t}`} viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
                     <path d="M0 0L10 5L0 10z" fill={EDGE_COLOR[t]} />
                   </marker>
                 ))}
