@@ -3,8 +3,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
 import { Layout } from './components/Layout';
 import { Loading } from './components/ui';
+import { ChallengeDetail } from './pages/ChallengeDetail';
+import { Challenges } from './pages/Challenges';
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
+import { PostChallenge } from './pages/PostChallenge';
 
 function Private({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth();
@@ -20,6 +23,9 @@ export function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/about" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/challenges" element={<Challenges />} />
+        <Route path="/challenges/new" element={<Private><PostChallenge /></Private>} />
+        <Route path="/challenges/:id" element={<ChallengeDetail />} />
         <Route path="*" element={<Private><Navigate to="/" replace /></Private>} />
       </Route>
     </Routes>
