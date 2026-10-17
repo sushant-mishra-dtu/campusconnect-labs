@@ -1,10 +1,10 @@
 // Software stand-in for the ESP32 examiner, used when a node has no board attached.
-// Same protocol and payload, but the key lives in a file on the lab node machine, so
-// the platform labels these proofs "simulation" rather than "verified on silicon".
+// Same protocol and payload, but the key lives in a file on the lab node machine and there
+// is no FPGA, so the platform labels these proofs "simulated" rather than "verified on silicon".
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildPayload, type SignedVerdict } from '../payload.js';
+import { buildPayload, type SignedVerdict, type Target } from '../payload.js';
 
 export interface ExaminerIdentity {
   id: string;
@@ -38,7 +38,7 @@ export class SimExaminer {
     return next;
   }
 
-  sign(fields: { attempt: string; challenge: string; node: string; nonce: string; measured: Record<string, unknown>; result: 'pass' | 'fail' }): SignedVerdict {
+  sign(fields: { attempt: string; challenge: string; node: string; target: Exclude<Target, 'fpga'>; nonce: string; measured: Record<string, unknown>; result: 'pass' | 'fail' }): SignedVerdict {
     const payload = buildPayload({ ...fields, examiner: this.identity.id, kind: 'sim', counter: this.nextCounter() });
     const sig = crypto.sign('sha256', Buffer.from(payload, 'utf8'), this.key).toString('base64');
     return { payload, sig };

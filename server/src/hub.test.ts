@@ -131,7 +131,7 @@ test('passing the same challenge twice makes one proof connection and one notifi
     run(`INSERT INTO attempts (id, user_id, challenge_id, test_id, node_id, booking_id, code, nonce, status, created_at)
          VALUES (?, 's', 'ch', 'uart-nonce', 'open', 'bk', 'x', '9c41e2', 'running', ?)`, id, Date.now());
     const payload = JSON.stringify({
-      v: 1, attempt: id, challenge: 'uart-nonce', node: 'open', examiner: 'ex-open', kind: 'sim',
+      v: 2, attempt: id, challenge: 'uart-nonce', node: 'open', examiner: 'ex-open', kind: 'sim', target: 'netlist',
       nonce: '9c41e2', counter: i + 1, measured: {}, result: 'pass',
     });
     ws.send(JSON.stringify({ type: 'verdict', attempt: id, payload, sig: crypto.sign('sha256', Buffer.from(payload), simKey.priv).toString('base64') }));

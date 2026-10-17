@@ -8,7 +8,7 @@ import { CHALLENGES_DIR, config } from './config.js';
 import { SerialExaminer } from './examiners/serial.js';
 import { SimExaminer, type ExaminerIdentity } from './examiners/sim.js';
 import { buildIce40, flashIce40 } from './flows/ice40.js';
-import { compileSim, examineSim, synthNetlist } from './flows/sim.js';
+import { buildReadback, compileSim, examineSim, synthNetlist } from './flows/sim.js';
 import { describeTools } from './hdl.js';
 import { lintStudentCode } from './lint.js';
 import type { SignedVerdict } from './payload.js';
@@ -28,7 +28,11 @@ const examiner: { identity: ExaminerIdentity } =
       })()
     : new SimExaminer(config.keysDir, config.node);
 
-console.log(`[node] ${config.node} · mode ${config.mode}`);
+if (config.mode === 'sim' && config.simTarget !== 'bitstream' && config.simTarget !== 'netlist') {
+  console.error(`[node] --sim-target must be bitstream or netlist, not ${config.simTarget}`);
+  process.exit(1);
+}
+console.log(`[node] ${config.node} · mode ${config.mode}${config.mode === 'sim' ? ` · no FPGA, simulating the ${config.simTarget}` : ''}`);
 if (!config.token && !config.info) {
   console.error(`[node] no token for ${config.node}: pass --token=, set CCL_NODE_TOKEN, or run \`npm run seed\` for the demo node`);
   process.exit(1);
@@ -38,7 +42,8 @@ if (config.info) {
   console.log(examiner.identity.pubkey);
   process.exit(0);
 }
-console.log(`[node] tools: yosys: wasm sandbox, ${describeTools(config.mode === 'hw' ? ['nextpnr-ice40', 'icepack', 'iceprog'] : ['iverilog', 'vvp'])}`);
+const simTools = config.simTarget === 'bitstream' ? 'nextpnr-ice40/icepack: wasm, icebox_vlog: python, ' : '';
+console.log(`[node] tools: yosys: wasm sandbox, ${config.mode === 'hw' ? describeTools(['nextpnr-ice40', 'icepack', 'iceprog']) : simTools + describeTools(['iverilog', 'vvp'])}`);
 
 let ws: WebSocket | null = null;
 let rejected = false;
@@ -108,13 +113,13 @@ async function runJob(job: Job) {
     let verdict: SignedVerdict;
     if (config.mode === 'sim') {
       stage('build');
-      const synthErr = await synthNetlist(dir, log);
-      if (synthErr) return fail('build', synthErr);
-      const compileErr = await compileSim(dir, job.challenge, log);
+      const buildErr = config.simTarget === 'bitstream' ? await buildReadback(dir, config.pcf, log) : await synthNetlist(dir, log);
+      if (buildErr) return fail('build', buildErr);
+      const compileErr = await compileSim(dir, job.challenge, config.simTarget, log);
       if (compileErr) return fail('build', compileErr);
 
       stage('flash');
-      log('[node] sim mode: no board on this node, loading the compiled model instead of flashing');
+      log(`[node] no FPGA on this node: loading the ${config.simTarget === 'bitstream' ? 'bitstream readback' : 'netlist'} into the simulator instead of flashing`);
 
       stage('examine');
       const out = await examineSim(dir, job.nonce, meta.maxSeconds ?? 30, log);
@@ -124,6 +129,7 @@ async function runJob(job: Job) {
         attempt: job.attempt,
         challenge: job.challenge,
         node: config.node,
+        target: config.simTarget,
         nonce: job.nonce,
         measured: out.measured,
         result: out.result,

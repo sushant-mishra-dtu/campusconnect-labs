@@ -31,6 +31,9 @@ export const config = {
   token: token(),
   // sim: iverilog + a software examiner key. hw: yosys/nextpnr/iceprog + the ESP32-S3 examiner.
   mode: (arg('mode') ?? process.env.CCL_MODE ?? 'sim') as 'sim' | 'hw',
+  // sim mode only: what the testbench runs against. bitstream: the real iCE40 bitstream read
+  // back to Verilog (needs Python 3). netlist: yosys's gate-level netlist (no place and route).
+  simTarget: (arg('sim-target') ?? process.env.CCL_SIM_TARGET ?? 'bitstream') as 'bitstream' | 'netlist',
   serial: arg('serial') ?? process.env.CCL_SERIAL,
   pcf: arg('pcf') ?? process.env.CCL_PCF ?? path.join(REPO_DIR, 'rtl', 'boards', 'icebreaker.pcf'),
   keysDir,

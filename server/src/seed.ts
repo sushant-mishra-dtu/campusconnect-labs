@@ -105,7 +105,8 @@ for (const c of challenges) {
 }
 
 // ---------- lab nodes ----------
-const BOARD = 'iCE40 UP5K (iCEBreaker) + ESP32-S3 examiner';
+// No physical board in this demo: both nodes simulate an iCEBreaker on the lab node's laptop.
+const BOARD = 'Simulated iCE40 UP5K (iCEBreaker pinout), no physical board';
 const newToken = () => crypto.randomBytes(18).toString('base64url');
 // The live node: its examiner key is pinned when the lab node agent first connects, which
 // it has a day to do. An ESP32 examiner also needs `npm run admin -- enroll` to count as silicon.
@@ -157,7 +158,7 @@ function pastPass(userId: string, challengeId: string, daysAgo: number, followUp
   const nonce = crypto.randomBytes(3).toString('hex').replace(/0a/g, '1b');
   counter += 1;
   const payload = JSON.stringify({
-    v: 1, attempt: attemptId, challenge: testId, node: nodeId, examiner: 'seed-dtu-02', kind: 'sim',
+    v: 2, attempt: attemptId, challenge: testId, node: nodeId, examiner: 'seed-dtu-02', kind: 'sim', target: 'bitstream',
     nonce, counter, measured: measuredFor(testId, nonce), result: 'pass',
   });
   const sig = crypto.sign('sha256', Buffer.from(payload), seedKey.privateKey).toString('base64');

@@ -4,7 +4,7 @@
  Browser (React)                    Platform (Node, Express, SQLite)               Lab node PC (any campus)
  ───────────────                    ────────────────────────────────               ────────────────────────
  Verilog editor ── POST /attempts ─▶ booking check, nonce            ── job ──▶   lint → yosys (wasm) → nextpnr → iceprog
- live console   ◀── /ws/client ───── hub fans out status + logs      ◀─ logs ──   (sim: yosys (wasm) → netlist → iverilog)
+ live console   ◀── /ws/client ───── hub fans out status + logs      ◀─ logs ──   (sim, no FPGA: yosys → nextpnr → bitstream → readback → iverilog)
  proof page     ◀── /proofs/:id ──── verdict.ts: sig, nonce,          ◀─ verdict ─ ESP32-S3 examiner signs
  (WebCrypto re-check)                counter, booking                              (sim: software key)
                                      │

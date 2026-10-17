@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { Attempt } from '../api';
+import type { Attempt, Proof as SignedProof } from '../api';
 import {
   Button,
   Card,
@@ -12,6 +12,7 @@ import {
   PersonLink,
   SectionTitle,
   Spinner,
+  TARGET_TEXT,
   Tag,
   cx,
   fmtDateTime,
@@ -19,10 +20,29 @@ import {
 import { useApi } from '../hooks';
 import { verifySignature, webCryptoAvailable } from '../lib/verify';
 
+// States plainly what this verdict was measured on. The target is part of the signed payload.
+function TestedOn({ kind, target }: { kind: string; target: SignedProof['target'] }) {
+  const t = target ? TARGET_TEXT[target] : null;
+  if (!t && kind === 'esp32') return null;
+  return (
+    <div className={cx('mt-4 rounded-lg border p-4 text-sm', kind === 'esp32' ? 'border-proof/30 bg-proof-soft' : 'border-line-2 bg-card')}>
+      <div className="font-medium">{t ? t.title : 'Simulated (signed before the target field existed)'}</div>
+      <p className="mt-1 text-ink-2">
+        {t ? t.detail : 'No physical FPGA was used.'}
+        {kind === 'sim' && ' The signing key is stored on the lab node’s computer, so this is weaker evidence than an enrolled ESP32 examiner.'}
+      </p>
+      {kind === 'sim' && (
+        <p className="mt-1 text-muted">Only verdicts from an ESP32 examiner whose key the platform enrolled, measuring a physical board, are marked “Verified on silicon”.</p>
+      )}
+    </div>
+  );
+}
+
 const SERVER_CHECKS = [
   'ECDSA P-256 signature verifies against the examiner key pinned for this node',
   'nonce equals the one the platform issued for this attempt',
   'node, examiner and challenge in the payload match the attempt',
+  'the payload says what was examined, and only an enrolled ESP32 examiner may say “physical FPGA”',
   'counter is higher than any the examiner used before (no replays)',
   'the attempt started inside a booking held by this student on this board',
 ];
@@ -89,12 +109,7 @@ export function Proof() {
           {a.node && <> on {a.node.name}, {a.node.college.name}</>}
           {a.finished_at && <> · {fmtDateTime(a.finished_at)}</>}
         </p>
-        {proof.examiner_kind === 'sim' && (
-          <p className="mt-2 text-sm text-muted">
-            This verdict came from a simulation examiner: the testbench ran against the synthesized netlist on the lab node, and the key is stored on that machine.
-            Only verdicts from an ESP32 examiner whose key the platform enrolled are marked “Verified on silicon”.
-          </p>
-        )}
+        <TestedOn kind={proof.examiner_kind} target={proof.target} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">

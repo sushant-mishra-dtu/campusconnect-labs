@@ -83,8 +83,8 @@ static void handleRun(JsonDocument &cmd) {
   logLine("measured " + r.measured);
 
   uint32_t counter = signer::nextCounter();
-  String payload = String("{\"v\":1,\"attempt\":\"") + attempt + "\",\"challenge\":\"" + challenge + "\",\"node\":\"" + node +
-                   "\",\"examiner\":\"" + signer::examinerId() + "\",\"kind\":\"esp32\",\"nonce\":\"" + nonceHex +
+  String payload = String("{\"v\":2,\"attempt\":\"") + attempt + "\",\"challenge\":\"" + challenge + "\",\"node\":\"" + node +
+                   "\",\"examiner\":\"" + signer::examinerId() + "\",\"kind\":\"esp32\",\"target\":\"fpga\",\"nonce\":\"" + nonceHex +
                    "\",\"counter\":" + String(counter) + ",\"measured\":" + r.measured + ",\"result\":\"" + (r.pass ? "pass" : "fail") + "\"}";
   String sig;
   if (!signer::sign(payload, sig)) {

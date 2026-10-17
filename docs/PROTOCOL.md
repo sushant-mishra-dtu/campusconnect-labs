@@ -34,7 +34,7 @@ Stages: `received → build → flash → examine → sign`. Errors before the e
 The examiner (ESP32-S3, or the sim examiner when a node has no board) builds this string and signs its exact UTF-8 bytes with ECDSA P-256 over SHA-256. The signature is DER, base64-encoded.
 
 ```json
-{"v":1,"attempt":"a7f3c2e1","challenge":"uart-nonce","node":"iiitd-01","examiner":"ex-3fa21c","kind":"esp32","nonce":"9c41e2","counter":118,"measured":{"baud":115385,"echo":"9c41e2","early_tx":0},"result":"pass"}
+{"v":2,"attempt":"a7f3c2e1","challenge":"uart-nonce","node":"iiitd-01","examiner":"ex-3fa21c","kind":"esp32","target":"fpga","nonce":"9c41e2","counter":118,"measured":{"baud":115385,"echo":"9c41e2","early_tx":0},"result":"pass"}
 ```
 
 | Field | Meaning |
@@ -42,6 +42,7 @@ The examiner (ESP32-S3, or the sim examiner when a node has no board) builds thi
 | `attempt`, `challenge`, `node`, `nonce` | copied from the job; the ESP32 only accepts `[a-z0-9-]` in them |
 | `examiner` | id of the signing chip |
 | `kind` | `esp32` for a hardware examiner, `sim` for the software one; must match what the platform has the node's examiner enrolled as |
+| `target` | what was examined: `fpga` (a physical board; `esp32` only), `bitstream` (the iCE40 bitstream read back to Verilog and simulated) or `netlist` (yosys's gate-level netlist, simulated). See [SIMULATION.md](SIMULATION.md) |
 | `counter` | monotonic, persisted before the verdict is sent |
 | `measured` | what the examiner observed on the pins (fields per challenge, see `rtl/challenges/*/spec.md`) |
 | `result` | `pass` or `fail`, decided by the examiner |
@@ -59,8 +60,9 @@ The node relays it unchanged:
 1. The signature verifies against the examiner public key **pinned** for this node.
 2. `nonce` equals the nonce issued for this attempt.
 3. `attempt`, `node`, `examiner` and `challenge` match the attempt and node, and `kind` matches the tier the platform gave this examiner (see key pinning).
-4. `counter` is greater than the last counter accepted from this examiner (replay protection).
-5. The attempt started inside a booking held by this student on this node, and the verdict arrived before the booking ended (plus 5 minutes grace).
+4. `v` is 2 and `target` fits the tier: an `esp32` examiner may only say `fpga`, a `sim` examiner only `bitstream` or `netlist`. A sim node can't sign a claim that it tested a board.
+5. `counter` is greater than the last counter accepted from this examiner (replay protection).
+6. The attempt started inside a booking held by this student on this node, and the verdict arrived before the booking ended (plus 5 minutes grace).
 
 A verdict that fails any check is stored with status `rejected` and the reason. A verdict that passes is stored as `verified`, along with a snapshot of the public key, so anyone can re-check it later at `/proof/<attempt>`.
 
@@ -89,4 +91,4 @@ The `kind` in the hello is not trusted. A node's examiner is `esp32` only if the
 
 It proves that an examiner holding the pinned key observed this design behave correctly on the pins, for this attempt, during this booking. It doesn't prove who typed the Verilog. That limit is the same as any take-home test, and the follow-up (referral interview, mentorship) is where the author finds out.
 
-With `kind: "sim"` the key lives on the lab node PC, so the club running that node could forge results. The UI labels those proofs "Verified in simulation" for that reason.
+With `kind: "sim"` there is no FPGA, and the key lives on the lab node PC, so the club running that node could forge results. The UI labels those proofs "Simulated, no physical FPGA" for that reason.
