@@ -21,6 +21,7 @@ module tb;
     always @(posedge clk) cyc = cyc + 1;
 
     reg [23:0] nonce;
+    reg [63:0] key;    // tags MEASURED/RESULT lines; only this run's lab node knows it
     reg        window = 1'b0;   // examiner is transmitting the nonce
     reg        early_tx = 1'b0;
     reg        sent_all = 1'b0;
@@ -50,6 +51,7 @@ module tb;
 
     initial begin
         if (!$value$plusargs("nonce=%h", nonce)) nonce = 24'h9c41e2;
+        if (!$value$plusargs("key=%h", key)) key = 64'd0;
         rx_bytes[0] = 8'h00; rx_bytes[1] = 8'h00; rx_bytes[2] = 8'h00;
         baud       = 0;
         sync_ok    = 1'b0;
@@ -138,22 +140,22 @@ module tb;
         if (early_tx)
             $display("LOG uart_tx toggled while the examiner was transmitting");
 
-        $display("MEASURED {\"baud\":%0d,\"echo\":\"%h%h%h\",\"early_tx\":%0d}",
+        $display("MEASURED %h {\"baud\":%0d,\"echo\":\"%h%h%h\",\"early_tx\":%0d}", key,
                  baud, rx_bytes[0], rx_bytes[1], rx_bytes[2], early_tx);
         if (got_reply && sync_ok && framing_ok && !early_tx &&
             {rx_bytes[0], rx_bytes[1], rx_bytes[2]} === nonce &&
             baud >= 111744 && baud <= 118656)
-            $display("RESULT pass");
+            $display("RESULT %h pass", key);
         else
-            $display("RESULT fail");
+            $display("RESULT %h fail", key);
         $finish;
     end
 
     initial begin
         #(83.334 * 200000);
         $display("LOG examiner timeout");
-        $display("MEASURED {\"baud\":0,\"echo\":\"\",\"early_tx\":%0d}", early_tx);
-        $display("RESULT fail");
+        $display("MEASURED %h {\"baud\":0,\"echo\":\"\",\"early_tx\":%0d}", key, early_tx);
+        $display("RESULT %h fail", key);
         $finish;
     end
 endmodule

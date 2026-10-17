@@ -8,7 +8,7 @@ import { CHALLENGES_DIR, config } from './config.js';
 import { SerialExaminer } from './examiners/serial.js';
 import { SimExaminer, type ExaminerIdentity } from './examiners/sim.js';
 import { buildIce40, flashIce40 } from './flows/ice40.js';
-import { compileSim, examineSim, synthCheck } from './flows/sim.js';
+import { compileSim, examineSim, synthNetlist } from './flows/sim.js';
 import { describeTools } from './hdl.js';
 import { lintStudentCode } from './lint.js';
 import type { SignedVerdict } from './payload.js';
@@ -29,12 +29,16 @@ const examiner: { identity: ExaminerIdentity } =
     : new SimExaminer(config.keysDir, config.node);
 
 console.log(`[node] ${config.node} · mode ${config.mode}`);
+if (!config.token && !config.info) {
+  console.error(`[node] no token for ${config.node}: pass --token=, set CCL_NODE_TOKEN, or run \`npm run seed\` for the demo node`);
+  process.exit(1);
+}
 console.log(`[node] examiner ${examiner.identity.id} (${examiner.identity.kind})`);
 if (config.info) {
   console.log(examiner.identity.pubkey);
   process.exit(0);
 }
-console.log(`[node] tools: ${describeTools(config.mode === 'hw' ? ['yosys', 'nextpnr-ice40', 'icepack', 'iceprog'] : ['yosys', 'iverilog', 'vvp'])}`);
+console.log(`[node] tools: yosys: wasm sandbox, ${describeTools(config.mode === 'hw' ? ['nextpnr-ice40', 'icepack', 'iceprog'] : ['iverilog', 'vvp'])}`);
 
 let ws: WebSocket | null = null;
 let rejected = false;
@@ -54,8 +58,9 @@ function connect() {
     const msg = JSON.parse(String(raw));
     if (msg.type === 'welcome') console.log(`[node] connected to ${config.server}, examiner key ${msg.fingerprint}`);
     else if (msg.type === 'rejected') {
-      rejected = true;
       console.error(`[node] platform rejected this node: ${msg.reason}`);
+      if (msg.retry) return; // another session for this node is still open; the close handler retries
+      rejected = true;
       process.exit(1);
     } else if (msg.type === 'job') {
       queue.push(msg as Job);
@@ -103,7 +108,7 @@ async function runJob(job: Job) {
     let verdict: SignedVerdict;
     if (config.mode === 'sim') {
       stage('build');
-      const synthErr = await synthCheck(dir, log);
+      const synthErr = await synthNetlist(dir, log);
       if (synthErr) return fail('build', synthErr);
       const compileErr = await compileSim(dir, job.challenge, log);
       if (compileErr) return fail('build', compileErr);

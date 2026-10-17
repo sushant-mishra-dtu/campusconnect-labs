@@ -1,9 +1,10 @@
-// Student code runs on someone else's machine. Before anything is compiled, refuse the
-// system tasks that touch files or end the examiner early, and `include.
-// (Proper sandboxing of the toolchain is on the roadmap.)
+// Early, friendly errors for code that can't work on the board. This is not the security
+// boundary: macros can spell any task past a regex. The boundary is that yosys runs in a
+// WebAssembly sandbox with only dut.v in its filesystem, and only the synthesized netlist
+// (iCE40 primitives, no system tasks) is ever simulated.
 
 const FORBIDDEN_TASKS =
-  /\$(system|fopen|fclose|fwrite[bho]?|fdisplay[bho]?|fmonitor|fstrobe|fscanf|fgets|fgetc|fread|readmem[bh]|writemem[bh]|dumpfile|dumpvars|dumpall|value\$plusargs|test\$plusargs|finish|stop)\b/;
+  /\$(system|f(?:open|close|write|display|monitor|strobe|scanf|gets|getc|read|seek|tell|flush|eof|error|rewind|ungetc)\w*|s?readmem\w*|writemem\w*|dump\w*|value\$plusargs|test\$plusargs|finish|stop|exit)\b/;
 
 function stripComments(code: string) {
   return code.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/.*$/gm, '');

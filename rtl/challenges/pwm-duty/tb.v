@@ -19,6 +19,7 @@ module tb;
     localparam integer GUARD  = 40000;  // give up on an edge after 3.3 ms
 
     reg [23:0] nonce;
+    reg [63:0] key;    // tags MEASURED/RESULT lines; only this run's lab node knows it
     integer    k, s, n, high, period, hz, hz_min, hz_max, errors, points;
     real       err, worst;
     reg        ok, stuck_high;
@@ -45,6 +46,7 @@ module tb;
 
     initial begin
         if (!$value$plusargs("nonce=%h", nonce)) nonce = 24'h9c41e2;
+        if (!$value$plusargs("key=%h", key)) key = 64'd0;
         errors = 0;
         points = 0;
         hz_min = 0;
@@ -93,17 +95,17 @@ module tb;
             end
         end
 
-        $display("MEASURED {\"points\":%0d,\"hz_min\":%0d,\"hz_max\":%0d,\"worst_duty_err\":\"%0.2f\"}", points, hz_min, hz_max, worst);
-        if (errors == 0) $display("RESULT pass");
-        else             $display("RESULT fail");
+        $display("MEASURED %h {\"points\":%0d,\"hz_min\":%0d,\"hz_max\":%0d,\"worst_duty_err\":\"%0.2f\"}", key, points, hz_min, hz_max, worst);
+        if (errors == 0) $display("RESULT %h pass", key);
+        else             $display("RESULT %h fail", key);
         $finish;
     end
 
     initial begin
         #(83.334 * 600000);
         $display("LOG examiner timeout");
-        $display("MEASURED {\"points\":%0d,\"hz_min\":0,\"hz_max\":0,\"worst_duty_err\":\"-1\"}", points);
-        $display("RESULT fail");
+        $display("MEASURED %h {\"points\":%0d,\"hz_min\":0,\"hz_max\":0,\"worst_duty_err\":\"-1\"}", key, points);
+        $display("RESULT %h fail", key);
         $finish;
     end
 endmodule

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@yowasp/yosys": "0.68.1207",
     "ws": "^8.18.0"
   },
   "optionalDependencies": {

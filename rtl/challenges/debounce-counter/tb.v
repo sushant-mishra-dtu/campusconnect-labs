@@ -18,6 +18,7 @@ module tb;
     localparam integer MS = 12000;  // cycles per millisecond
 
     reg [23:0] nonce;
+    reg [63:0] key;    // tags MEASURED/RESULT lines; only this run's lab node knows it
     reg [31:0] lfsr;
     integer    presses, p, errors;
     reg  [7:0] got;
@@ -43,6 +44,7 @@ module tb;
 
     initial begin
         if (!$value$plusargs("nonce=%h", nonce)) nonce = 24'h9c41e2;
+        if (!$value$plusargs("key=%h", key)) key = 64'd0;
         lfsr    = {8'ha5, nonce} | 32'h1;
         presses = 5 + (nonce[3:0] % 8);
         errors  = 0;
@@ -73,13 +75,13 @@ module tb;
         #1 got = led;
         if (^got === 1'bx) begin
             $display("LOG LEDs are undriven (x)");
-            $display("MEASURED {\"presses\":%0d,\"counted\":-1}", presses);
-            $display("RESULT fail");
+            $display("MEASURED %h {\"presses\":%0d,\"counted\":-1}", key, presses);
+            $display("RESULT %h fail", key);
         end else begin
             $display("LOG counted %0d of %0d presses", got, presses);
-            $display("MEASURED {\"presses\":%0d,\"counted\":%0d}", presses, got);
-            if (errors == 0 && got == presses) $display("RESULT pass");
-            else                               $display("RESULT fail");
+            $display("MEASURED %h {\"presses\":%0d,\"counted\":%0d}", key, presses, got);
+            if (errors == 0 && got == presses) $display("RESULT %h pass", key);
+            else                               $display("RESULT %h fail", key);
         end
         $finish;
     end
@@ -87,8 +89,8 @@ module tb;
     initial begin
         #(83.334 * 2000000);
         $display("LOG examiner timeout");
-        $display("MEASURED {\"presses\":%0d,\"counted\":-1}", presses);
-        $display("RESULT fail");
+        $display("MEASURED %h {\"presses\":%0d,\"counted\":-1}", key, presses);
+        $display("RESULT %h fail", key);
         $finish;
     end
 endmodule

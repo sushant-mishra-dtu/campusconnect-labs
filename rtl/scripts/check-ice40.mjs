@@ -1,10 +1,11 @@
 // Builds every challenge for the real board, with the same steps as labnode/src/flows/ice40.ts:
-// yosys -> nextpnr-ice40 (UP5K, SG48, iCEBreaker pin map, 12 MHz) -> icepack.
-// Reference and starter must both produce a bitstream that meets timing, since either can be flashed.
+// yosys (the lab node's WebAssembly sandbox) -> nextpnr-ice40 (UP5K, SG48, iCEBreaker pin map,
+// 12 MHz) -> icepack. Reference and starter must both produce a bitstream that meets timing,
+// since either can be flashed.
 // Usage: node rtl/scripts/check-ice40.mjs [challenge-id]
 //
-// yosys comes from PATH or WSL. nextpnr-ice40 and icepack do too when installed; otherwise the
-// YoWASP builds are used if present (no sudo needed): npm install --no-save @yowasp/nextpnr-ice40
+// nextpnr-ice40 and icepack come from PATH or WSL when installed; otherwise the YoWASP builds
+// are used if present (no sudo needed): npm install --no-save @yowasp/nextpnr-ice40
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -15,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const challengesDir = path.resolve(here, '..', 'challenges');
 const pcfPath = path.resolve(here, '..', 'boards', 'icebreaker.pcf');
+const sandbox = path.resolve(here, '..', '..', 'labnode', 'src', 'yosys-sandbox.mjs');
 const only = process.argv.slice(2).find((a) => !a.startsWith('--'));
 const distro = process.env.CCL_WSL_DISTRO ? ['-d', process.env.CCL_WSL_DISTRO] : [];
 
@@ -38,12 +40,8 @@ async function loadYowasp() {
   return true;
 }
 
-const runners = {};
-for (const tool of ['yosys', 'nextpnr-ice40', 'icepack']) runners[tool] = probe(tool);
-if (!runners.yosys) {
-  console.error('yosys not found on PATH or in WSL');
-  process.exit(2);
-}
+const runners = { yosys: 'sandbox' };
+for (const tool of ['nextpnr-ice40', 'icepack']) runners[tool] = probe(tool);
 if ((!runners['nextpnr-ice40'] || !runners.icepack) && (await loadYowasp())) {
   runners['nextpnr-ice40'] ??= 'yowasp';
   runners.icepack ??= 'yowasp';
@@ -57,6 +55,10 @@ console.log(Object.entries(runners).map(([t, r]) => `${t}: ${r}`).join(', '));
 
 // Runs a tool in `work` and returns { code, log }.
 async function run(tool, args, work) {
+  if (runners[tool] === 'sandbox') {
+    const r = spawnSync(process.execPath, [sandbox, work, ...args], { encoding: 'utf8' });
+    return { code: r.status, log: (r.stdout ?? '') + (r.stderr ?? '') };
+  }
   if (runners[tool] === 'yowasp') {
     const files = {};
     for (const f of fs.readdirSync(work)) files[f] = fs.readFileSync(path.join(work, f));
@@ -89,7 +91,7 @@ async function buildOne(id, file) {
   fs.copyFileSync(pcfPath, path.join(work, 'board.pcf'));
   const t0 = Date.now();
   const steps = [
-    ['yosys', ['-q', '-p', 'read_verilog -sv dut.v; synth_ice40 -top top -json top.json']],
+    ['yosys', ['json']],
     // -q left off so nextpnr prints utilisation and timing
     ['nextpnr-ice40', ['--up5k', '--package', 'sg48', '--freq', '12', '--pcf', 'board.pcf', '--json', 'top.json', '--asc', 'top.asc']],
     ['icepack', ['top.asc', 'top.bin']],

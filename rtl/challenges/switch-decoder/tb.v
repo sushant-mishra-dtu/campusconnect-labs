@@ -16,6 +16,7 @@ module tb;
     );
 
     reg [23:0] nonce;
+    reg [63:0] key;    // tags MEASURED/RESULT lines; only this run's lab node knows it
     integer    i, errors;
     reg  [5:0] v;
     reg        b;
@@ -26,6 +27,7 @@ module tb;
 
     initial begin
         if (!$value$plusargs("nonce=%h", nonce)) nonce = 24'h9c41e2;
+        if (!$value$plusargs("key=%h", key)) key = 64'd0;
         errors   = 0;
         seen_bad = 1'b0;
 
@@ -58,17 +60,17 @@ module tb;
         if (seen_bad)
             $display("LOG first mismatch: sw=%b expected led=%b got %b", bad_sw, bad_want, bad_got);
         $display("LOG %0d of 64 vectors correct", 64 - errors);
-        $display("MEASURED {\"vectors\":64,\"errors\":%0d}", errors);
-        if (errors == 0) $display("RESULT pass");
-        else             $display("RESULT fail");
+        $display("MEASURED %h {\"vectors\":64,\"errors\":%0d}", key, errors);
+        if (errors == 0) $display("RESULT %h pass", key);
+        else             $display("RESULT %h fail", key);
         $finish;
     end
 
     initial begin
         #(83.334 * 20000);
         $display("LOG examiner timeout");
-        $display("MEASURED {\"vectors\":64,\"errors\":-1}");
-        $display("RESULT fail");
+        $display("MEASURED %h {\"vectors\":64,\"errors\":-1}", key);
+        $display("RESULT %h fail", key);
         $finish;
     end
 endmodule

@@ -1,5 +1,9 @@
 // Runs open-source FPGA tools either natively or, on Windows, inside WSL.
+// Student Verilog never reaches these tools directly: yosys runs it in a WebAssembly
+// sandbox (sandboxedYosys below) and everything here only sees what that produces.
 import { spawn, spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 type Runner = 'native' | 'wsl';
 
@@ -38,24 +42,28 @@ export interface RunResult {
   timedOut: boolean;
 }
 
+type RunOpts = { timeoutSec: number; onLine?: (line: string, stream: 'out' | 'err') => void };
+
 // Spawns `tool args...` in `cwd`, calling onLine for every output line.
-export function runTool(
-  tool: string,
-  args: string[],
-  cwd: string,
-  opts: { timeoutSec: number; onLine?: (line: string, stream: 'out' | 'err') => void },
-): Promise<RunResult> {
+export function runTool(tool: string, args: string[], cwd: string, opts: RunOpts): Promise<RunResult> {
   const runner = probe(tool);
   if (!runner) return Promise.resolve({ code: 127, stdout: '', stderr: `${tool} is not installed`, timedOut: false });
+  if (runner === 'native') return runProcess(tool, args, cwd, opts);
+  // `timeout` inside WSL, because killing wsl.exe does not always stop the Linux process
+  return runProcess('wsl.exe', [...distroArgs(), '--cd', cwd, '-e', 'timeout', String(opts.timeoutSec), tool, ...args], undefined, opts, true);
+}
 
-  const [cmd, argv, spawnCwd] =
-    runner === 'native'
-      ? [tool, args, cwd]
-      : // `timeout` inside WSL, because killing wsl.exe does not always stop the Linux process
-        ['wsl.exe', [...distroArgs(), '--cd', cwd, '-e', 'timeout', String(opts.timeoutSec), tool, ...args], undefined];
+const SANDBOX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'yosys-sandbox.mjs');
 
+// yosys on student code, compiled to WebAssembly so it can't see the host filesystem.
+// netlist: dut.v -> synth.v + cells_sim.v (for simulation). json: dut.v -> top.json (for nextpnr).
+export function sandboxedYosys(dir: string, flow: 'netlist' | 'json', opts: RunOpts): Promise<RunResult> {
+  return runProcess(process.execPath, [SANDBOX, dir, flow], dir, opts);
+}
+
+function runProcess(cmd: string, argv: string[], cwd: string | undefined, opts: RunOpts, wsl = false): Promise<RunResult> {
   return new Promise((resolve) => {
-    const child = spawn(cmd, argv, { cwd: spawnCwd, windowsHide: true });
+    const child = spawn(cmd, argv, { cwd, windowsHide: true });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -81,7 +89,8 @@ export function runTool(
     child.on('close', (code) => {
       clearTimeout(timer);
       for (const s of ['out', 'err'] as const) if (bufs[s]) opts.onLine?.(bufs[s], s);
-      resolve({ code: timedOut ? null : code === 124 && runner === 'wsl' ? null : code, stdout, stderr, timedOut: timedOut || (runner === 'wsl' && code === 124) });
+      const wslTimeout = wsl && code === 124;
+      resolve({ code: timedOut || wslTimeout ? null : code, stdout, stderr, timedOut: timedOut || wslTimeout });
     });
     child.on('error', (err) => {
       clearTimeout(timer);
