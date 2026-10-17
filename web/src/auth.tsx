@@ -4,7 +4,7 @@ import { api, getToken, setToken, type Me } from './api';
 interface AuthState {
   me: Me | null;
   loading: boolean;
-  login: (email: string) => Promise<void>;
+  login: (email: string, password?: string) => Promise<void>;
   signup: (body: Record<string, unknown>) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
@@ -37,8 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(
-    async (email: string) => {
-      const r = await api<{ token: string }>('/auth/login', { body: { email } });
+    async (email: string, password?: string) => {
+      const r = await api<{ token: string }>('/auth/login', { body: { email, password } });
       setToken(r.token);
       await refresh();
     },

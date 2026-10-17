@@ -1,5 +1,4 @@
 import CodeMirror from '@uiw/react-codemirror';
-import { marked } from 'marked';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, type Attempt as AttemptT, type Booking, type ChallengeDetail, type LabNode } from '../api';
@@ -19,6 +18,7 @@ import {
   fmtTime,
 } from '../components/ui';
 import { useApi, useNow } from '../hooks';
+import { renderMarkdown } from '../lib/markdown';
 import { verilogLanguage } from '../lib/verilog';
 import { useLive, useLiveRefresh } from '../live';
 
@@ -164,7 +164,7 @@ export function Attempt() {
     [subscribe, attempt, refresh],
   );
 
-  const html = useMemo(() => (ch ? (marked.parse(ch.spec, { async: false }) as string) : ''), [ch]);
+  const html = useMemo(() => (ch ? renderMarkdown(ch.spec) : ''), [ch]);
 
   const node = nodes.data?.find((n) => n.id === nodeId);
   const booking = bookings.data?.find((b) => b.node_id === nodeId && b.starts_at <= now && b.ends_at > now);

@@ -1,4 +1,3 @@
-import { marked } from 'marked';
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { ChallengeDetail as Detail } from '../api';
@@ -18,13 +17,13 @@ import {
   timeAgo,
 } from '../components/ui';
 import { useApi } from '../hooks';
+import { renderMarkdown } from '../lib/markdown';
 
 export function ChallengeDetail() {
   const { id } = useParams();
   const { me } = useAuth();
   const { data: c, error, loading } = useApi<Detail>(`/challenges/${id}`);
-  // Specs come from the repo's own rtl/challenges/*/spec.md, not from users.
-  const html = useMemo(() => (c ? (marked.parse(c.spec, { async: false }) as string) : ''), [c]);
+  const html = useMemo(() => (c ? renderMarkdown(c.spec) : ''), [c]);
 
   if (loading) return <Loading />;
   if (error || !c) return <ErrorNote>{error ?? 'Not found'}</ErrorNote>;
