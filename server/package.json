@@ -7,7 +7,8 @@
     "dev": "tsx watch --clear-screen=false --disable-warning=ExperimentalWarning src/index.ts",
     "start": "tsx --disable-warning=ExperimentalWarning src/index.ts",
     "seed": "tsx --disable-warning=ExperimentalWarning src/seed.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=ExperimentalWarning --import tsx --test src/verdict.test.ts"
   },
   "dependencies": {
     "express": "^4.21.2",
