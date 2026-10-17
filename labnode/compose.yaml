@@ -1,0 +1,29 @@
+# One college lab node on its own machine, connecting out to the platform.
+#   CCL_SERVER=ws://<platform host>:4000/ws/node CCL_NODE=<node id> CCL_NODE_TOKEN=<token> \
+#     docker compose -f labnode/compose.yaml up -d --build
+# The node id and token come from the platform (Labs → Lend a board, or `admin token <node>`).
+name: ccl-labnode
+
+services:
+  labnode:
+    build:
+      context: ..
+      dockerfile: labnode/Dockerfile
+    init: true
+    restart: unless-stopped
+    environment:
+      CCL_SERVER: ${CCL_SERVER:?set CCL_SERVER to the platform, e.g. ws://<platform host>:4000/ws/node}
+      CCL_NODE: ${CCL_NODE:?set CCL_NODE to the node id the platform issued}
+      CCL_NODE_TOKEN: ${CCL_NODE_TOKEN:?set CCL_NODE_TOKEN to the node token}
+      CCL_MODE: ${CCL_MODE:-sim}
+      CCL_SERIAL: ${CCL_SERIAL:-}
+    volumes:
+      - keys:/keys
+    # hw mode: pass the ESP32 examiner and the iCEBreaker's USB through, then set CCL_MODE=hw and
+    # CCL_SERIAL=/dev/ttyACM0. The ESP32's key must be enrolled on the platform first.
+    # devices:
+    #   - /dev/ttyACM0:/dev/ttyACM0
+    #   - /dev/bus/usb:/dev/bus/usb
+
+volumes:
+  keys:

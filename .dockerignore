@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/dist
+*.log
+.env
+.env.*
+server/data
+labnode/keys
+labnode/.work
+examiner
+docs
+**/*.vvp
+**/*.vcd
+**/*.asc
+**/*.bin

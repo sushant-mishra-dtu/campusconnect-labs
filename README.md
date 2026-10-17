@@ -15,7 +15,9 @@ There are no follow buttons. Every edge in the graph points to something that ha
 
 ## Run it
 
-Needs Node 22.13+ (uses the built-in `node:sqlite`) and Icarus Verilog for the simulation lab node. On Windows, `iverilog` inside WSL is picked up automatically. yosys comes from npm as WebAssembly, so there's nothing to install for it.
+Needs Node 22.13+ (uses the built-in `node:sqlite`) and Icarus Verilog 12 or newer for the simulation lab node (Ubuntu 22.04's package is 11, which can't read the iCE40 cell models). On Windows, `iverilog` inside WSL is picked up automatically. yosys comes from npm as WebAssembly, so there's nothing to install for it.
+
+With Docker, `docker compose up -d --build` runs the platform and a simulation lab node together on http://localhost:4000. See [docs/DEPLOY.md](docs/DEPLOY.md), which also covers running a college lab node on its own.
 
 ```bash
 npm install

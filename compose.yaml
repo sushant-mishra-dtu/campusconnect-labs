@@ -1,0 +1,45 @@
+# The platform plus one simulation lab node on the same machine, for the demo.
+#   docker compose up -d --build
+# A college runs only the lab node, on its own machine: see labnode/compose.yaml.
+name: campusconnect-labs
+
+services:
+  platform:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${CCL_PORT:-4000}:4000"
+    environment:
+      # The seeded people are fictional; demo sign-in lets judges switch personas without passwords.
+      # Set CCL_DEMO_LOGIN=0 once real accounts are on it.
+      CCL_DEMO_LOGIN: "${CCL_DEMO_LOGIN:-1}"
+    volumes:
+      - platform-data:/data
+      - node-token:/handoff
+
+  labnode:
+    build:
+      context: .
+      dockerfile: labnode/Dockerfile
+    init: true
+    restart: unless-stopped
+    depends_on:
+      platform:
+        condition: service_healthy
+    environment:
+      CCL_SERVER: ws://platform:4000/ws/node
+      CCL_NODE: iiitd-01
+      # The platform's first start seeds the demo data and leaves this node's token here
+      CCL_NODE_TOKEN_FILE: /handoff/iiitd-01.token
+      CCL_MODE: sim
+    volumes:
+      - labnode-keys:/keys
+      - node-token:/handoff:ro
+
+volumes:
+  platform-data:
+  labnode-keys:
+  node-token:
