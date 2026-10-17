@@ -24,7 +24,7 @@ The lab node streams `status` and `log` messages while it works:
 
 ```json
 { "type": "status", "attempt": "a7f3c2e1", "stage": "build" }
-{ "type": "log", "attempt": "a7f3c2e1", "line": "[yosys] fits in UP5K: 145 LUT4 / 5280, 126 DFF, 22 carry" }
+{ "type": "log", "attempt": "a7f3c2e1", "line": "[yosys] fits in UP5K: 161 LUT4 / 5280, 126 DFF, 22 carry" }
 ```
 
 Stages: `received → build → flash → examine → sign`. Errors before the examiner runs (lint, synthesis, compile, iceprog) come back as `{ "type": "error" }` and are never signed.
@@ -41,7 +41,7 @@ The examiner (ESP32-S3, or the sim examiner when a node has no board) builds thi
 |---|---|
 | `attempt`, `challenge`, `node`, `nonce` | copied from the job; the ESP32 only accepts `[a-z0-9-]` in them |
 | `examiner` | id of the signing chip |
-| `kind` | `esp32` for a hardware examiner, `sim` for the software one |
+| `kind` | `esp32` for a hardware examiner, `sim` for the software one; must match what the platform has the node's examiner enrolled as |
 | `counter` | monotonic, persisted before the verdict is sent |
 | `measured` | what the examiner observed on the pins (fields per challenge, see `rtl/challenges/*/spec.md`) |
 | `result` | `pass` or `fail`, decided by the examiner |
@@ -58,7 +58,7 @@ The node relays it unchanged:
 
 1. The signature verifies against the examiner public key **pinned** for this node.
 2. `nonce` equals the nonce issued for this attempt.
-3. `attempt`, `node`, `examiner` and `challenge` match the attempt and node.
+3. `attempt`, `node`, `examiner` and `challenge` match the attempt and node, and `kind` matches the tier the platform gave this examiner (see key pinning).
 4. `counter` is greater than the last counter accepted from this examiner (replay protection).
 5. The attempt started inside a booking held by this student on this node, and the verdict arrived before the booking ended (plus 5 minutes grace).
 
@@ -67,7 +67,7 @@ A verdict that fails any check is stored with status `rejected` and the reason. 
 ## 5. What a verified pass creates
 
 - a **badge** for the student (one per test, first pass wins),
-- a `proved_for` **connection** from the student to the challenge author, with the attempt attached,
+- a `proved_for` **connection** from the student to the challenge author, with the attempt attached (once per student and challenge: passing again doesn't put the student in the author's inbox twice),
 - a `lent_board` connection from the club that owns the node to the student (once per club/student/node),
 - notifications to the author and the club.
 
@@ -81,7 +81,9 @@ The node sends its examiner identity in its first message:
 { "type": "hello", "node": "iiitd-01", "token": "…", "examiner": { "id": "ex-3fa21c", "kind": "esp32", "pubkey": "-----BEGIN PUBLIC KEY-----…" } }
 ```
 
-The node token authenticates the agent (only its SHA-256 is stored). The first accepted key is pinned to the node; from then on a hello with a different key is refused. The fingerprint is shown on the Labs page so the club can compare it with what the ESP32 prints.
+The node token authenticates the agent (only its SHA-256 is stored; tokens are generated when a node is registered or seeded, never committed). Issuing a token opens a 24-hour **pairing window**: the first key presented inside it is pinned and the window closes. From then on a hello with a different key is refused, and a hello for a node that already has a live session is turned away (`"retry": true`) rather than replacing it. The fingerprint is shown on the Labs page so the club can compare it with what the ESP32 prints.
+
+The `kind` in the hello is not trusted. A node's examiner is `esp32` only if the platform operator enrolled that exact public key for that node (`npm run admin -w server -- enroll <node> <pubkey.pem>`); anything else is `sim`. The hello's `kind` has to agree: an ESP32 whose key isn't enrolled is refused at connect (every verdict it signs says `esp32` and would be refused anyway), so the label can be granted but never claimed. Silicon trust means an enrolled examiner. An enrolled key may also pair after the window has closed.
 
 ## What this does and doesn't prove
 

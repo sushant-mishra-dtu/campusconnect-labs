@@ -36,7 +36,7 @@ Submit the starter as-is. Watch the pipeline: booking → yosys synthesis → ex
 
 Paste the reference UART, **Build, flash & examine**. Read out the console:
 
-- `fits in UP5K: 145 LUT4 / 5280` (it's real hardware-sized RTL)
+- `fits in UP5K: 161 LUT4 / 5280` (it's real hardware-sized RTL)
 - `sending nonce 7fb874 then 0x0A` (fresh for this attempt)
 - `reply after sync byte: 7f b8 74 at 115385 baud` (measured on the wire)
 - five green checks: signature, nonce, node/examiner, counter, booking
@@ -63,7 +63,11 @@ Network page. The new edges pulse: Aarav → Meera (proved_for), Ishaan → Aara
 
 **"Isn't this just simulation?"** Today's demo uses the simulation examiner, and the UI says so ("Verified in simulation"). The ESP32-S3 firmware and the yosys → nextpnr → iceprog flow are in the repo (`examiner/`, `labnode/src/flows/ice40.ts`), with the wiring in `docs/HARDWARE.md`. Every challenge already builds to a real UP5K bitstream that meets timing (`npm run check:ice40`), and the firmware compiles. Switching a node to hardware is `--mode=hw --serial=…`.
 
-**"Can the lab node cheat?"** With an ESP32 examiner, no: the node never has the key; it only relays what the ESP32 signs, and the platform pins the ESP32's public key. With the sim examiner, the club running the node could, which is why those proofs are labelled differently.
+**"Can the lab node cheat?"** With an ESP32 examiner, no: the node never has the key; it only relays what the ESP32 signs, and the platform pins the ESP32's public key. "Verified on silicon" needs that key to be enrolled by the platform operator, so a laptop that calls itself an ESP32 is turned away when it connects. With the sim examiner, the club running the node could, which is why those proofs are labelled differently.
+
+**"Can my design print `RESULT pass` itself?"** No. The sim examiner synthesizes the design first and runs the testbench against the netlist, which is only iCE40 primitives: no `$display`, no `final`, nothing that talks to the testbench except the pins. The testbench also tags its verdict line with a key only that run knows. Try `initial $display("RESULT pass");` on the starter: it's signed as a FAIL.
+
+**"Can my design read files on the lender's PC?"** No. yosys runs as WebAssembly with only your file in its filesystem, so `$readmemh("/etc/passwd", rom)` fails to build however it's spelled.
 
 **"Can a student replay someone else's pass?"** No. Every attempt gets a fresh nonce that the examiner must echo inside the signed payload, and the counter has to go up.
 

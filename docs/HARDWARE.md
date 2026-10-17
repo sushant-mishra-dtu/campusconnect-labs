@@ -41,8 +41,10 @@ A different iCE40 board (UPduino, Fomu-class boards) only needs a new `.pcf`; pa
 ## Toolchain on the lab node PC
 
 ```bash
-sudo apt install yosys nextpnr-ice40 fpga-icestorm iverilog   # or the OSS CAD Suite
+sudo apt install nextpnr-ice40 fpga-icestorm   # or the OSS CAD Suite
 ```
+
+yosys comes with `npm install` as WebAssembly (`@yowasp/yosys`); the lab node runs student code through it so the code can't reach this PC's files.
 
 Check that every challenge builds for the board before plugging anything in:
 
@@ -52,7 +54,14 @@ npm run check:ice40
 
 Without sudo, `npm install --no-save @yowasp/nextpnr-ice40` gets WebAssembly builds of nextpnr-ice40 and icepack that the check uses instead. They don't include `iceprog`, so the lab node itself still needs the real toolchain.
 
-Then:
+Then get the ESP32 enrolled. Only enrolled keys may sign "Verified on silicon", so the platform refuses an `hw` node until the operator has enrolled its ESP32's public key:
+
+```bash
+npm run examiner:info -w labnode -- --mode=hw --serial=/dev/ttyACM0 > examiner.pem
+npm run admin -w server -- enroll <id> examiner.pem
+```
+
+and start the node:
 
 ```bash
 npm run labnode -- --node=<id> --token=<token> --mode=hw --serial=/dev/ttyACM0
@@ -74,7 +83,8 @@ The criteria match the simulation testbenches in `rtl/challenges/*/tb.v`, so a d
 ## Why the verdict can be trusted
 
 - The P-256 key is generated on the ESP32 on first boot and stored in its NVS. The lab node only ever sees the public key.
-- The platform pins that public key to the node the first time the node connects. A different key is refused.
+- The platform operator enrolls that public key for the node. Only enrolled keys produce "Verified on silicon"; a node can't promote itself by claiming to be an ESP32 (one whose key isn't enrolled is refused at connect).
+- The platform pins the key to the node the first time the node connects (inside the pairing window, or any time for an enrolled key). A different key is refused.
 - Each verdict includes the nonce the platform issued for that attempt and a counter that only goes up, saved before the verdict is sent.
 
 Hardening for production (not done in the hackathon build): enable flash encryption and NVS encryption so the key can't be read off the flash chip, and secure boot so the firmware can't be swapped for one that signs anything.
@@ -83,4 +93,4 @@ Hardening for production (not done in the hackathon build): enable flash encrypt
 
 The firmware compiles cleanly with `pio run` in `examiner/` (official `espressif32` platform 7.1.3, Arduino-ESP32 2.0.17, mbedTLS 2.28; no warnings with `-Wall -Wextra`; 6.6% RAM, 11.3% flash) but has **not** been flashed to a board yet. `signer.cpp` also has a branch for the mbedTLS 3.x API (Arduino-ESP32 3.x); that branch has not been compiled. The sim path is what has been run end to end.
 
-`npm run check:ice40` passes. All four reference designs and all four starters go through yosys → nextpnr-ice40 → icepack for the UP5K-SG48 with this pin map, with no warnings, and produce a 104,090-byte bitstream. The largest design, `uart-nonce`, uses 245 of 5,280 logic cells and routes at 51.6 MHz against the 12 MHz clock. Those builds used nextpnr 0.11 and icestorm from YoWASP with yosys 0.33. None of the bitstreams has been flashed yet.
+`npm run check:ice40` passes. All four reference designs and all four starters go through yosys → nextpnr-ice40 → icepack for the UP5K-SG48 with this pin map, with no warnings, and produce a 104,090-byte bitstream. The largest design, `uart-nonce`, uses 261 of 5,280 logic cells and routes at 48 MHz against the 12 MHz clock. Those builds used the lab node's sandboxed yosys (YoWASP 0.68) with nextpnr 0.11 and icestorm from YoWASP. None of the bitstreams has been flashed yet.

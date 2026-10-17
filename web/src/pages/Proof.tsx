@@ -91,8 +91,8 @@ export function Proof() {
         </p>
         {proof.examiner_kind === 'sim' && (
           <p className="mt-2 text-sm text-muted">
-            This verdict came from a simulation examiner: the testbench ran on the lab node and the key is stored on that machine. Verdicts from an ESP32 examiner
-            are marked “Verified on silicon”.
+            This verdict came from a simulation examiner: the testbench ran against the synthesized netlist on the lab node, and the key is stored on that machine.
+            Only verdicts from an ESP32 examiner whose key the platform enrolled are marked “Verified on silicon”.
           </p>
         )}
       </div>

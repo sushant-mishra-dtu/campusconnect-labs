@@ -15,22 +15,25 @@ There are no follow buttons. Every edge in the graph points to something that ha
 
 ## Run it
 
-Needs Node 22.13+ (uses the built-in `node:sqlite`) and Icarus Verilog for the simulation lab node. On Windows, `iverilog` and `yosys` inside WSL are picked up automatically.
+Needs Node 22.13+ (uses the built-in `node:sqlite`) and Icarus Verilog for the simulation lab node. On Windows, `iverilog` inside WSL is picked up automatically. yosys comes from npm as WebAssembly, so there's nothing to install for it.
 
 ```bash
 npm install
-npm run seed       # demo people, challenges, two lab nodes, signed history
+npm run seed       # demo people, challenges, two lab nodes, signed history, a fresh lab node token
 npm run dev        # API on :4000, web app on :5173
 npm run labnode    # in a second terminal: a sim lab node for "Robotics Club bench, IIIT Delhi"
 ```
 
-Open http://localhost:5173 and pick a person. No passwords in demo mode.
+`npm run seed` generates a new token for the demo lab node every time, prints it, and saves it to `labnode/keys/iiitd-01.token` (gitignored), where `npm run labnode` finds it. No token is committed.
+
+Open http://localhost:5173 and pick a person. The seeded people are fictional and sign in without a password while **demo sign-in** is on; accounts you create need their password. Demo sign-in is off when `NODE_ENV=production` or `CCL_DEMO_LOGIN=0`; turn it off for any public deploy.
 
 | Command | What it does |
 |---|---|
-| `npm run check:rtl` | every reference design must pass its testbench, every starter must fail |
+| `npm run check:rtl` | every reference design must pass its testbench and every starter must fail, simulated as the synthesized iCE40 netlist a sim lab node runs (`-- --rtl` simulates the source) |
 | `npm run check:ice40` | every reference and starter must build to an iCE40 UP5K bitstream with the iCEBreaker pin map and meet 12 MHz (needs `nextpnr-ice40` and `icepack`, or `npm install --no-save @yowasp/nextpnr-ice40`) |
-| `npm test -w server` | verdict verification: tampering, wrong key, stale nonce, replayed counter, expired booking |
+| `npm test -w server` | verdict verification (tampering, wrong key, stale nonce, replayed counter, expired booking, wrong examiner tier), node pairing and silicon enrollment, one proof connection per challenge, sign-in, booking limits |
+| `npm run admin -w server -- list` | operator commands: `enroll` an ESP32 examiner key as silicon, rotate a node `token`, `unpin` a node's examiner |
 | `npm run build && npm start` | production build served by the API server on :4000 |
 
 ## Demo people
@@ -60,13 +63,14 @@ People, companies and two of the colleges are fictional. The full walkthrough is
 
 | Working | Not yet |
 |---|---|
-| Full loop in simulation: browser → booking check → lab node → yosys synthesis check → iverilog examiner → signed verdict → verification → badge, connection, referral | Flashing a board and running the ESP32 examiner on real pins |
+| Full loop in simulation: browser → booking check → lab node → yosys synthesis → iverilog examiner on the gate-level netlist → signed verdict → verification → badge, connection, referral | Flashing a board and running the ESP32 examiner on real pins |
 | Every challenge builds to an iCE40 UP5K bitstream that meets 12 MHz; the ESP32 firmware compiles | Flash/NVS encryption and secure boot on the ESP32 |
-| ECDSA P-256 signatures, nonce per attempt, monotonic counter, key pinning per node | Real sign-in (demo mode signs in by email) |
-| In-browser re-verification of any proof with WebCrypto | Sandboxing the toolchain on lab nodes (code is linted, not containerized) |
+| ECDSA P-256 signatures, nonce per attempt, monotonic counter, key pinning per node with a pairing window | College SSO and email verification (sign-in is email and password) |
+| Student code is only ever read by yosys compiled to WebAssembly, which can't see the lab node's files; the testbench runs against the synthesized netlist, so a design can't print its own verdict | An OS-level sandbox around iverilog and nextpnr (they see only yosys's netlist, never student source) |
+| In-browser re-verification of any proof with WebCrypto | Proof of key possession when a node connects (today the node token authenticates it) |
 | Skill-gap matching from proven skills only | |
 
-Proofs from the simulation examiner are labelled **Verified in simulation**; only an ESP32 examiner produces **Verified on silicon**.
+Proofs from the simulation examiner are labelled **Verified in simulation**. **Verified on silicon** needs an ESP32 examiner whose public key the platform operator enrolled for that node (`npm run admin -w server -- enroll`); what a node says about itself doesn't count.
 
 ## Team
 

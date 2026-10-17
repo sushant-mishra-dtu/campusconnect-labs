@@ -201,6 +201,11 @@ function LendBoard({ onDone }: { onDone: () => void }) {
           <pre className="overflow-x-auto rounded-lg bg-board p-3 font-mono text-xs text-[#d8e6dd]">
             {`npm run labnode -- --node=${result.node.id} --token=${result.token} --mode=hw --serial=COM5`}
           </pre>
+          <p className="text-ink-2">
+            Before starting it, get your ESP32 enrolled: run <span className="font-mono">npm run examiner:info -w labnode -- --mode=hw --serial=COM5</span> and send the
+            public key it prints to the platform operator. Until then the platform turns the node away. The first key it presents is pinned to this board; without an
+            ESP32 (<span className="font-mono">--mode=sim</span>), start it within 24 hours, before pairing closes.
+          </p>
         </div>
       ) : (
         <form onSubmit={submit} className="mt-4 flex flex-wrap gap-2">
