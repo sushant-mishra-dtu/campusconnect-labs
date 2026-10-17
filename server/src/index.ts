@@ -4,9 +4,10 @@ import path from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { attempts } from './attempts.js';
 import { optionalAuth } from './auth.js';
-import { one } from './db.js';
+import { db, one } from './db.js';
 import { attachHub, failOrphanedAttempts } from './hub.js';
 import { WEB_DIST } from './paths.js';
+import { clients, nodeSockets } from './presence.js';
 import { api } from './routes.js';
 import { HttpError } from './util.js';
 
@@ -18,6 +19,12 @@ if (!one('SELECT 1 FROM users LIMIT 1')) {
 
 const app = express();
 app.disable('x-powered-by');
+// Behind a reverse proxy every request arrives from the proxy's address, so all users would share
+// one sign-in, booking and attempt limit. CCL_TRUST_PROXY names the proxy (a hop count, or
+// addresses such as "loopback, uniquelocal") so req.ip comes from X-Forwarded-For. Leave it unset
+// when browsers connect directly, or anyone could pick their own address with a header.
+const trustProxy = process.env.CCL_TRUST_PROXY;
+if (trustProxy) app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
 app.use(express.json({ limit: '256kb' }));
 app.use(optionalAuth);
 
@@ -49,3 +56,17 @@ server.listen(PORT, () => {
   console.log(`[server] CampusConnect Labs API on http://localhost:${PORT}`);
   console.log(`[server] lab nodes connect to ws://localhost:${PORT}/ws/node`);
 });
+
+// `docker stop` sends SIGTERM. Close the sockets so agents and tabs reconnect cleanly, let open
+// requests finish, then close the database so its WAL is checkpointed.
+function shutdown(signal: string) {
+  console.log(`[server] ${signal}, shutting down`);
+  for (const ws of [...nodeSockets.values(), ...clients.keys()]) ws.close(1001, 'server restarting');
+  server.close(() => {
+    db.close();
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(0), 5000).unref();
+}
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));

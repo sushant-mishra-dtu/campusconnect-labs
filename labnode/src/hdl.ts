@@ -35,6 +35,17 @@ export function describeTools(tools: string[]) {
   return tools.map((t) => `${t}: ${probe(t) ?? 'missing'}`).join(', ');
 }
 
+// The first line `tool -V` prints, run the same way the tool will be (natively or in WSL).
+export function toolVersion(tool: string) {
+  const runner = probe(tool);
+  if (!runner) return null;
+  const r =
+    runner === 'native'
+      ? spawnSync(tool, ['-V'], { encoding: 'utf8', timeout: 5000, input: '' })
+      : spawnSync('wsl.exe', [...distroArgs(), '-e', tool, '-V'], { encoding: 'utf8', timeout: 10000 });
+  return `${r.stdout ?? ''}${r.stderr ?? ''}`.split(/\r?\n/).find((l) => l.trim()) ?? '';
+}
+
 export interface RunResult {
   code: number | null;
   stdout: string;
