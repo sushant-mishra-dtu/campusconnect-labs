@@ -1,0 +1,137 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-paper: #f5f3ee;
+  --color-card: #ffffff;
+  --color-ink: #16181d;
+  --color-ink-2: #3d4149;
+  --color-muted: #6c707a;
+  --color-line: #e3e0d8;
+  --color-line-2: #d2cec4;
+
+  /* signed, measured, real */
+  --color-proof: #157a4c;
+  --color-proof-bright: #2fbf71;
+  --color-proof-soft: #e2f3ea;
+
+  /* typed by the user */
+  --color-claim: #a2600f;
+  --color-claim-soft: #fbf0df;
+
+  --color-fail: #b4361f;
+  --color-fail-soft: #fbe6e1;
+
+  --color-wire: #2f5bd3;
+  --color-wire-soft: #e7edfc;
+
+  --color-board: #0e1612;
+  --color-board-2: #16211b;
+  --color-trace: #9fb8a9;
+}
+
+html,
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+::selection {
+  background: #c9ecd8;
+}
+
+.prose-spec h2 {
+  font-size: 1rem;
+  font-weight: 650;
+  margin: 1.4rem 0 0.5rem;
+}
+.prose-spec h2:first-child {
+  margin-top: 0;
+}
+.prose-spec p,
+.prose-spec li {
+  color: var(--color-ink-2);
+  line-height: 1.6;
+  font-size: 0.925rem;
+}
+.prose-spec ul,
+.prose-spec ol {
+  padding-left: 1.25rem;
+  margin: 0.4rem 0;
+}
+.prose-spec ul {
+  list-style: disc;
+}
+.prose-spec ol {
+  list-style: decimal;
+}
+.prose-spec code {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  background: #efece5;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.prose-spec pre {
+  background: var(--color-board);
+  color: #d8e6dd;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  margin: 0.6rem 0;
+}
+.prose-spec pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+.prose-spec table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  margin: 0.6rem 0;
+}
+.prose-spec th,
+.prose-spec td {
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+}
+.prose-spec th {
+  font-weight: 600;
+}
+
+.console-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.console-scroll::-webkit-scrollbar-thumb {
+  background: #2a3a31;
+  border-radius: 4px;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-dot {
+    animation: none;
+  }
+}
