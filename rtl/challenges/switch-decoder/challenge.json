@@ -1,0 +1,8 @@
+{
+  "id": "switch-decoder",
+  "title": "Gray code & parity decoder",
+  "summary": "Turn the six switches into Gray code and parity on the LEDs. The examiner sweeps all 64 inputs.",
+  "difficulty": "beginner",
+  "skills": ["verilog-basics", "combinational-logic"],
+  "maxSeconds": 20
+}
