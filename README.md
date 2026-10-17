@@ -29,6 +29,7 @@ Open http://localhost:5173 and pick a person. No passwords in demo mode.
 | Command | What it does |
 |---|---|
 | `npm run check:rtl` | every reference design must pass its testbench, every starter must fail |
+| `npm run check:ice40` | every reference and starter must build to an iCE40 UP5K bitstream with the iCEBreaker pin map and meet 12 MHz (needs `nextpnr-ice40` and `icepack`, or `npm install --no-save @yowasp/nextpnr-ice40`) |
 | `npm test -w server` | verdict verification: tampering, wrong key, stale nonce, replayed counter, expired booking |
 | `npm run build && npm start` | production build served by the API server on :4000 |
 
@@ -59,10 +60,11 @@ People, companies and two of the colleges are fictional. The full walkthrough is
 
 | Working | Not yet |
 |---|---|
-| Full loop in simulation: browser → booking check → lab node → yosys synthesis check → iverilog examiner → signed verdict → verification → badge, connection, referral | ESP32 firmware and the iCE40 flash flow are written but have not been run on a board |
-| ECDSA P-256 signatures, nonce per attempt, monotonic counter, key pinning per node | Flash/NVS encryption and secure boot on the ESP32 |
-| In-browser re-verification of any proof with WebCrypto | Real sign-in (demo mode signs in by email) |
-| Skill-gap matching from proven skills only | Sandboxing the toolchain on lab nodes (code is linted, not containerized) |
+| Full loop in simulation: browser → booking check → lab node → yosys synthesis check → iverilog examiner → signed verdict → verification → badge, connection, referral | Flashing a board and running the ESP32 examiner on real pins |
+| Every challenge builds to an iCE40 UP5K bitstream that meets 12 MHz; the ESP32 firmware compiles | Flash/NVS encryption and secure boot on the ESP32 |
+| ECDSA P-256 signatures, nonce per attempt, monotonic counter, key pinning per node | Real sign-in (demo mode signs in by email) |
+| In-browser re-verification of any proof with WebCrypto | Sandboxing the toolchain on lab nodes (code is linted, not containerized) |
+| Skill-gap matching from proven skills only | |
 
 Proofs from the simulation examiner are labelled **Verified in simulation**; only an ESP32 examiner produces **Verified on silicon**.
 

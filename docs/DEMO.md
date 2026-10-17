@@ -61,7 +61,7 @@ Network page. The new edges pulse: Aarav → Meera (proved_for), Ishaan → Aara
 
 ## Judge questions you'll get
 
-**"Isn't this just simulation?"** Today's demo uses the simulation examiner, and the UI says so ("Verified in simulation"). The ESP32-S3 firmware and the yosys → nextpnr → iceprog flow are in the repo (`examiner/`, `labnode/src/flows/ice40.ts`), with the wiring in `docs/HARDWARE.md`. Switching a node to hardware is `--mode=hw --serial=…`.
+**"Isn't this just simulation?"** Today's demo uses the simulation examiner, and the UI says so ("Verified in simulation"). The ESP32-S3 firmware and the yosys → nextpnr → iceprog flow are in the repo (`examiner/`, `labnode/src/flows/ice40.ts`), with the wiring in `docs/HARDWARE.md`. Every challenge already builds to a real UP5K bitstream that meets timing (`npm run check:ice40`), and the firmware compiles. Switching a node to hardware is `--mode=hw --serial=…`.
 
 **"Can the lab node cheat?"** With an ESP32 examiner, no: the node never has the key; it only relays what the ESP32 signs, and the platform pins the ESP32's public key. With the sim examiner, the club running the node could, which is why those proofs are labelled differently.
 
