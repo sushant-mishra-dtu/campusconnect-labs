@@ -1,13 +1,12 @@
 // WebSocket hub. Lab node agents connect on /ws/node, browsers on /ws/client.
-import crypto from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
-import { WebSocketServer, type WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { userFromToken } from './auth.js';
 import { all, one, run, tx, type AttemptRow, type ChallengeRow, type NodeRow } from './db.js';
 import { notify } from './notify.js';
 import { broadcast, clients, nodeSockets, pushToWatchers } from './presence.js';
 import { TESTS } from './tests.js';
-import { fingerprint, now, prefixedId, sha256 } from './util.js';
+import { fingerprint, keyHash, now, prefixedId, sha256 } from './util.js';
 import { checkVerdict } from './verdict.js';
 import { attemptView } from './views.js';
 
@@ -47,6 +46,12 @@ function finishWithError(id: string, message: string, stage?: string) {
   run("UPDATE attempts SET status = 'error', stage = ?, reject_reason = ?, finished_at = ? WHERE id = ?",
     stage ?? a.stage, message, now(), id);
   publishAttempt(id);
+}
+
+export function cancelAttemptsForBooking(bookingId: string) {
+  for (const a of all<AttemptRow>("SELECT * FROM attempts WHERE booking_id = ? AND status IN ('queued','running')", bookingId)) {
+    finishWithError(a.id, 'booking cancelled');
+  }
 }
 
 // ------------------------------------------------------------------ dispatch
@@ -92,6 +97,7 @@ function acceptVerdict(nodeId: string, attemptId: string, payloadText: string, s
   const ch = one<ChallengeRow>('SELECT * FROM challenges WHERE id = ?', a.challenge_id)!;
   const t = now();
   let newBadge = false;
+  let newProof = false;
 
   tx(() => {
     run('UPDATE nodes SET last_counter = ? WHERE id = ?', p.counter, nodeId);
@@ -104,11 +110,14 @@ function acceptVerdict(nodeId: string, attemptId: string, payloadText: string, s
     newBadge = run('INSERT OR IGNORE INTO badges (id, user_id, test_id, attempt_id, kind, issued_at) VALUES (?, ?, ?, ?, ?, ?)',
       prefixedId('bd'), a.user_id, a.test_id, a.id, node.examiner_kind ?? 'sim', t).changes > 0;
 
-    // The proof creates the connection: student -> challenge author.
-    if (ch.author_id !== a.user_id) {
+    // The proof creates the connection: student -> challenge author. Once per challenge,
+    // so passing again doesn't put the same student in the author's inbox twice.
+    if (ch.author_id !== a.user_id &&
+        !one("SELECT 1 FROM connections WHERE from_id = ? AND to_id = ? AND type = 'proved_for' AND challenge_id = ?", a.user_id, ch.author_id, ch.id)) {
       run(`INSERT INTO connections (id, from_id, to_id, type, attempt_id, challenge_id, node_id, created_at)
            VALUES (?, ?, ?, 'proved_for', ?, ?, ?, ?)`,
         prefixedId('e'), a.user_id, ch.author_id, a.id, ch.id, nodeId, t);
+      newProof = true;
     }
     // And the club that lent the board is linked to the student it served.
     if (node.owner_id !== a.user_id &&
@@ -122,8 +131,9 @@ function acceptVerdict(nodeId: string, attemptId: string, payloadText: string, s
   appendLog(attemptId, `[platform] verdict accepted: ${p.result.toUpperCase()}`);
   if (p.result === 'pass') {
     const student = one<{ name: string }>('SELECT name FROM users WHERE id = ?', a.user_id)!;
-    appendLog(attemptId, newBadge ? '[platform] badge issued, connection created' : '[platform] connection created (badge already held)');
-    notify(ch.author_id, `${student.name} passed “${ch.title}” on ${node.name}. The signed proof is attached.`, `/proof/${a.id}`);
+    appendLog(attemptId, `[platform] ${newBadge ? 'badge issued' : 'badge already held'}, ${
+      newProof ? 'connection created' : ch.author_id === a.user_id ? 'no connection to yourself' : 'already connected for this challenge'}`);
+    if (newProof) notify(ch.author_id, `${student.name} passed “${ch.title}” on ${node.name}. The signed proof is attached.`, `/proof/${a.id}`);
     notify(node.owner_id, `Your board ${node.name} just verified a pass for ${student.name}.`, `/proof/${a.id}`);
     broadcast({ type: 'network' });
   }
@@ -144,44 +154,55 @@ function handleNode(ws: WebSocket) {
     }
 
     if (msg.type === 'hello') {
+      const reject = (reason: string, retry = false) => {
+        ws.send(JSON.stringify({ type: 'rejected', reason, retry }));
+        ws.close();
+      };
       const node = one<NodeRow>('SELECT * FROM nodes WHERE id = ?', msg.node);
-      if (!node || node.token_hash !== sha256(String(msg.token ?? ''))) {
-        ws.send(JSON.stringify({ type: 'rejected', reason: 'unknown node or bad token' }));
-        ws.close();
-        return;
-      }
+      if (!node || node.token_hash !== sha256(String(msg.token ?? ''))) return reject('unknown node or bad token');
       const ex = msg.examiner;
-      if (!ex?.pubkey || !ex.id) {
-        ws.send(JSON.stringify({ type: 'rejected', reason: 'hello must include the examiner id and public key' }));
-        ws.close();
-        return;
-      }
+      if (!ex?.pubkey || !ex.id) return reject('hello must include the examiner id and public key');
+      let exHash: string;
       try {
-        crypto.createPublicKey(ex.pubkey);
+        exHash = keyHash(ex.pubkey);
       } catch {
-        ws.send(JSON.stringify({ type: 'rejected', reason: 'examiner public key is not a valid PEM key' }));
-        ws.close();
-        return;
+        return reject('examiner public key is not a valid PEM key');
       }
-      if (node.examiner_pubkey && fingerprint(node.examiner_pubkey) !== fingerprint(ex.pubkey)) {
-        ws.send(JSON.stringify({
-          type: 'rejected',
-          reason: `examiner key ${fingerprint(ex.pubkey)} does not match the pinned key ${fingerprint(node.examiner_pubkey)}`,
-        }));
-        ws.close();
-        return;
+      // A second session doesn't replace a live one; the agent retries until the old one is gone.
+      const live = nodeSockets.get(node.id);
+      if (live && live !== ws && live.readyState === WebSocket.OPEN) return reject('this node already has an open session', true);
+
+      // Silicon trust comes only from the operator's enrollment list, never from the hello.
+      const enrolled = !!one('SELECT 1 FROM silicon_examiners WHERE node_id = ? AND key_sha256 = ?', node.id, exHash);
+      const kind = enrolled ? 'esp32' : 'sim';
+      // The examiner signs its own kind into every verdict, and a verdict whose kind disagrees with
+      // the platform's is refused. Turn the node away now instead of failing each attempt later.
+      if ((ex.kind ?? 'sim') !== kind) {
+        console.warn(`[hub] node ${node.id}: examiner ${fingerprint(ex.pubkey)} says ${ex.kind}, enrollment says ${kind}; refused`);
+        return reject(kind === 'sim'
+          ? `ESP32 examiner ${fingerprint(ex.pubkey)} is not enrolled for ${node.id}. Send its public key to the platform operator, who runs: npm run admin -w server -- enroll ${node.id} <examiner.pem>`
+          : `key ${fingerprint(ex.pubkey)} is enrolled as an ESP32 examiner for ${node.id}; start the lab node with --mode=hw`);
       }
-      if (!node.examiner_pubkey) {
-        // Pinned on first contact. The node owner sees the fingerprint on the Labs page.
-        run('UPDATE nodes SET examiner_id = ?, examiner_kind = ?, examiner_pubkey = ?, last_counter = -1 WHERE id = ?',
-          ex.id, ex.kind === 'esp32' ? 'esp32' : 'sim', ex.pubkey, node.id);
+
+      if (node.examiner_pubkey) {
+        if (keyHash(node.examiner_pubkey) !== exHash) {
+          return reject(`examiner key ${fingerprint(ex.pubkey)} does not match the pinned key ${fingerprint(node.examiner_pubkey)}`);
+        }
+        if (node.examiner_kind !== kind) run('UPDATE nodes SET examiner_kind = ? WHERE id = ?', kind, node.id);
+      } else {
+        // Trust on first use, but only inside the pairing window opened when the token was issued
+        // (or for an enrolled key). Pinning closes the window.
+        if (!enrolled && !(node.pin_open_until && node.pin_open_until > now())) {
+          return reject('no examiner key is pinned and the pairing window has closed; ask the platform operator to reopen it');
+        }
+        run('UPDATE nodes SET examiner_id = ?, examiner_kind = ?, examiner_pubkey = ?, last_counter = -1, pin_open_until = NULL WHERE id = ?',
+          ex.id, kind, ex.pubkey, node.id);
       }
-      nodeSockets.get(node.id)?.close();
       nodeSockets.set(node.id, ws);
       nodeId = node.id;
       run('UPDATE nodes SET last_seen = ? WHERE id = ?', now(), node.id);
-      ws.send(JSON.stringify({ type: 'welcome', node: node.id, fingerprint: fingerprint(ex.pubkey) }));
-      console.log(`[hub] node ${node.id} online (examiner ${ex.id}, ${fingerprint(ex.pubkey)})`);
+      ws.send(JSON.stringify({ type: 'welcome', node: node.id, fingerprint: fingerprint(ex.pubkey), kind }));
+      console.log(`[hub] node ${node.id} online (examiner ${ex.id}, ${fingerprint(ex.pubkey)}, ${kind})`);
       broadcast({ type: 'nodes' });
       return;
     }

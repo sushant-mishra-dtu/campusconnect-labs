@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { DB_PATH } from './paths.js';
+import { keyHash } from './util.js';
 
 export { DB_PATH };
 
@@ -30,6 +31,8 @@ CREATE TABLE IF NOT EXISTS users (
   org         TEXT,
   claims      TEXT NOT NULL DEFAULT '[]',
   hue         INTEGER NOT NULL DEFAULT 200,
+  password_hash TEXT,
+  is_demo     INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL
 );
 
@@ -78,7 +81,18 @@ CREATE TABLE IF NOT EXISTS nodes (
   examiner_pubkey  TEXT,
   last_counter     INTEGER NOT NULL DEFAULT -1,
   last_seen        INTEGER,
+  pin_open_until   INTEGER,
   created_at       INTEGER NOT NULL
+);
+
+-- Examiner keys the operator enrolled, out of band, as ESP32s holding their key on-chip.
+-- Only these produce "Verified on silicon"; what a node says about itself doesn't count.
+CREATE TABLE IF NOT EXISTS silicon_examiners (
+  key_sha256   TEXT NOT NULL,
+  node_id      TEXT NOT NULL REFERENCES nodes(id),
+  note         TEXT,
+  enrolled_at  INTEGER NOT NULL,
+  PRIMARY KEY (node_id, key_sha256)
 );
 
 CREATE TABLE IF NOT EXISTS bookings (
@@ -155,6 +169,54 @@ CREATE INDEX IF NOT EXISTS idx_connections_to ON connections(to_id);
 
 db.exec(SCHEMA);
 
+// Databases created before a column existed get it added in place.
+function ensureColumn(table: string, column: string, ddl: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (cols.some((c) => c.name === column)) return false;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  return true;
+}
+ensureColumn('users', 'password_hash', 'TEXT');
+if (ensureColumn('users', 'is_demo', 'INTEGER NOT NULL DEFAULT 0')) {
+  db.exec("UPDATE users SET is_demo = 1 WHERE email LIKE '%@demo.ccl'");
+}
+ensureColumn('nodes', 'pin_open_until', 'INTEGER');
+
+// One proof edge per student, author and challenge: passing again doesn't re-notify.
+// Older databases may hold repeats; drop the later ones nobody has acted on.
+db.exec(`
+DELETE FROM connections WHERE type = 'proved_for'
+  AND NOT EXISTS (SELECT 1 FROM connections f WHERE f.parent_id = connections.id)
+  AND EXISTS (SELECT 1 FROM connections o WHERE o.type = 'proved_for' AND o.from_id = connections.from_id
+              AND o.to_id = connections.to_id AND o.challenge_id IS connections.challenge_id AND o.rowid < connections.rowid);
+`);
+try {
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_proved_for ON connections(from_id, to_id, challenge_id) WHERE type = 'proved_for'");
+} catch {
+  console.warn('[db] repeated proof connections with follow-ups exist; re-seed to enforce one per challenge');
+}
+
+// "esp32" only ever comes from an enrollment. Downgrade anything that claimed it without one
+// (nodes used to self-declare it), including the proofs and badges it produced.
+export function enforceEnrollment() {
+  const claimed = db.prepare(
+    `SELECT node_id, examiner_pubkey FROM attempts WHERE examiner_kind = 'esp32'
+     UNION SELECT id, examiner_pubkey FROM nodes WHERE examiner_kind = 'esp32'`,
+  ).all() as { node_id: string; examiner_pubkey: string | null }[];
+  for (const c of claimed) {
+    const ok = c.examiner_pubkey && db.prepare('SELECT 1 FROM silicon_examiners WHERE node_id = ? AND key_sha256 = ?')
+      .get(c.node_id, keyHash(c.examiner_pubkey));
+    if (ok) continue;
+    db.prepare("UPDATE nodes SET examiner_kind = 'sim' WHERE id = ? AND examiner_kind = 'esp32' AND examiner_pubkey IS ?")
+      .run(c.node_id, c.examiner_pubkey);
+    db.prepare("UPDATE attempts SET examiner_kind = 'sim' WHERE node_id = ? AND examiner_kind = 'esp32' AND examiner_pubkey IS ?")
+      .run(c.node_id, c.examiner_pubkey);
+  }
+  db.exec(`UPDATE badges SET kind = 'sim' WHERE kind = 'esp32'
+           AND attempt_id IN (SELECT id FROM attempts WHERE examiner_kind = 'sim')`);
+}
+enforceEnrollment();
+
 const statements = new Map<string, ReturnType<DatabaseSync['prepare']>>();
 function stmt(sql: string) {
   let s = statements.get(sql);
@@ -199,6 +261,8 @@ export interface UserRow {
   org: string | null;
   claims: string;
   hue: number;
+  password_hash: string | null;
+  is_demo: number;
   created_at: number;
 }
 
@@ -214,6 +278,7 @@ export interface NodeRow {
   examiner_pubkey: string | null;
   last_counter: number;
   last_seen: number | null;
+  pin_open_until: number | null;
   created_at: number;
 }
 

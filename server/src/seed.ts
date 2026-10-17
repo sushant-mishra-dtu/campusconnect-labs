@@ -1,9 +1,12 @@
 // Demo data. People, companies and two of the colleges are fictional.
 // Historical proofs are signed by a one-off "seed examiner" key whose private half
 // is thrown away when this script ends; they are labelled as simulation proofs.
+// Node tokens are random per seed and never committed: the live node's token is printed
+// and written to labnode/keys/ (gitignored), where the local lab node agent picks it up.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { DB_PATH } from './paths.js';
+import path from 'node:path';
+import { DB_PATH, REPO_DIR } from './paths.js';
 import { sha256 } from './util.js';
 
 for (const suffix of ['', '-wal', '-shm']) fs.rmSync(DB_PATH + suffix, { force: true });
@@ -60,9 +63,10 @@ const users: Seed[] = [
   ['u_ishaan', 'Ishaan Verma', 'ishaan@demo.ccl', 'club', 'Lead, Robotics Club', 'iiitd', 'Robotics Club, IIIT Delhi', [], 100],
   ['u_neha', 'Neha Bansal', 'neha@demo.ccl', 'club', 'Chair, IEEE Student Branch', 'dtu', 'IEEE Student Branch, DTU', [], 60],
 ];
+// is_demo: these fictional people can sign in without a password while demo sign-in is on.
 for (const u of users) {
   run(
-    'INSERT INTO users (id, name, email, role, headline, college_id, org, claims, hue, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO users (id, name, email, role, headline, college_id, org, claims, hue, is_demo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)',
     u[0], u[1], u[2], u[3], u[4], u[5], u[6], JSON.stringify(u[7]), u[8], t(30),
   );
 }
@@ -102,16 +106,19 @@ for (const c of challenges) {
 
 // ---------- lab nodes ----------
 const BOARD = 'iCE40 UP5K (iCEBreaker) + ESP32-S3 examiner';
-// The live node: its examiner key is pinned when the lab node agent first connects.
-run('INSERT INTO nodes (id, name, college_id, owner_id, board, token_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  'iiitd-01', 'Robotics Club bench', 'iiitd', 'u_ishaan', BOARD, sha256('demo-iiitd-01-token'), t(14));
+const newToken = () => crypto.randomBytes(18).toString('base64url');
+// The live node: its examiner key is pinned when the lab node agent first connects, which
+// it has a day to do. An ESP32 examiner also needs `npm run admin -- enroll` to count as silicon.
+const liveToken = newToken();
+run('INSERT INTO nodes (id, name, college_id, owner_id, board, token_hash, pin_open_until, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  'iiitd-01', 'Robotics Club bench', 'iiitd', 'u_ishaan', BOARD, sha256(liveToken), Date.now() + DAY, t(14));
 
 // The historical node, signed by a throwaway seed key.
 const seedKey = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 const seedPub = seedKey.publicKey.export({ type: 'spki', format: 'pem' }).toString();
 run(`INSERT INTO nodes (id, name, college_id, owner_id, board, token_hash, examiner_id, examiner_kind, examiner_pubkey, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  'dtu-02', 'IEEE lab, bench 2', 'dtu', 'u_neha', BOARD, sha256('demo-dtu-02-token'), 'seed-dtu-02', 'sim', seedPub, t(20));
+  'dtu-02', 'IEEE lab, bench 2', 'dtu', 'u_neha', BOARD, sha256(newToken()), 'seed-dtu-02', 'sim', seedPub, t(20));
 
 // ---------- historical attempts ----------
 const NODE_OWNER: Record<string, string> = { 'dtu-02': 'u_neha', 'iiitd-01': 'u_ishaan' };
@@ -190,4 +197,10 @@ db.exec('COMMIT');
 
 console.log(`Seeded ${users.length} people, ${challenges.length} challenges, ${TESTS.size} tests, 2 lab nodes, ${counter} historical proofs`);
 console.log(`Database: ${DB_PATH}`);
-console.log('Lab node token for iiitd-01: demo-iiitd-01-token');
+
+const tokenFile = path.join(process.env.CCL_KEYS_DIR ?? path.join(REPO_DIR, 'labnode', 'keys'), 'iiitd-01.token');
+fs.mkdirSync(path.dirname(tokenFile), { recursive: true });
+fs.writeFileSync(tokenFile, liveToken + '\n', { mode: 0o600 });
+console.log(`Lab node token for iiitd-01 (new every seed): ${liveToken}`);
+const shown = path.relative(REPO_DIR, tokenFile);
+console.log(`  saved to ${shown.startsWith('..') ? tokenFile : shown} for the local lab node; pairing is open for 24 h`);

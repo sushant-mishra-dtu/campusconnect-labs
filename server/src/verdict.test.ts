@@ -70,6 +70,12 @@ test('rejects a replayed counter', () => {
   assert.match((r as { reason: string }).reason, /replay/);
 });
 
+test('rejects a payload that claims a different examiner tier than the node is enrolled as', () => {
+  const v = signed();
+  const r = checkVerdict(attempt, { ...node, examiner_kind: 'sim' }, v.payload, v.sig);
+  assert.match((r as { reason: string }).reason, /says kind .esp32., but this node's examiner is enrolled as .sim./);
+});
+
 test('rejects a verdict that names another node', () => {
   const v = signed({ node: 'n2' });
   assert.equal(checkVerdict(attempt, node, v.payload, v.sig).ok, false);

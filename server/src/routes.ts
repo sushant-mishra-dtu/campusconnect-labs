@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
-import { createSession, publicUser, requireAuth, requireRole } from './auth.js';
+import { checkPassword, createSession, DEMO_LOGIN, hashPassword, publicUser, requireAuth, requireRole } from './auth.js';
 import {
   all,
   one,
@@ -13,10 +13,12 @@ import {
   type UserRow,
 } from './db.js';
 import { computeGap } from './gap.js';
+import { cancelAttemptsForBooking } from './hub.js';
 import { notify } from './notify.js';
-import { broadcast } from './presence.js';
+import { broadcast, isOnline } from './presence.js';
+import { rateLimit } from './ratelimit.js';
 import { TESTS } from './tests.js';
-import { HttpError, now, parseJson, prefixedId, sha256 } from './util.js';
+import { HttpError, now, PAIRING_WINDOW_MS, parseJson, prefixedId, sha256 } from './util.js';
 import {
   badgesOf,
   bookingView,
@@ -34,40 +36,55 @@ export const api = Router();
 
 const POSTER_ROLES: UserRow['role'][] = ['alum', 'recruiter', 'founder'];
 
+// One upcoming slot per board and two overall, so nobody can hold a board's whole week.
+const MAX_UPCOMING_PER_NODE = 1;
+const MAX_UPCOMING_TOTAL = 2;
+
+const authLimit = rateLimit(20, 60_000);
+const writeLimit = rateLimit(30, 60_000);
+
 // ---------------------------------------------------------------- auth
 
+// The seeded, fictional people, for the persona picker. Empty when demo sign-in is off.
 api.get('/auth/demo-users', (_req, res) => {
+  if (!DEMO_LOGIN) {
+    res.json([]);
+    return;
+  }
   res.json(
-    all<UserRow>('SELECT * FROM users ORDER BY created_at, name').map((u) => ({
+    all<UserRow>('SELECT * FROM users WHERE is_demo = 1 ORDER BY created_at, name').map((u) => ({
       ...userBrief(u.id),
       email: u.email,
     })),
   );
 });
 
-// Demo mode: sign in with an email, no password. Real auth (college SSO / magic link)
-// is on the roadmap; nothing in the proof chain depends on it.
-api.post('/auth/login', (req, res) => {
+// Email + password. With demo sign-in on, a seeded demo person can sign in with the email alone.
+api.post('/auth/login', authLimit, (req, res) => {
   const email = String(req.body?.email ?? '').trim().toLowerCase();
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
   const u = one<UserRow>('SELECT * FROM users WHERE email = ?', email);
-  if (!u) throw new HttpError(404, 'No account with that email');
-  res.json({ token: createSession(u.id), user: publicUser(u) });
+  const demo = !!u && DEMO_LOGIN && !!u.is_demo && !password;
+  if (!demo && !checkPassword(password, u?.password_hash ?? null)) throw new HttpError(401, 'Wrong email or password');
+  res.json({ token: createSession(u!.id), user: publicUser(u!) });
 });
 
-api.post('/auth/signup', (req, res) => {
+api.post('/auth/signup', authLimit, (req, res) => {
   const b = req.body ?? {};
   const role = String(b.role ?? 'student') as UserRow['role'];
   if (!['student', 'alum', 'recruiter', 'founder', 'club'].includes(role)) throw new HttpError(400, 'Unknown role');
   const name = String(b.name ?? '').trim();
   const email = String(b.email ?? '').trim().toLowerCase();
   if (!name || !email.includes('@')) throw new HttpError(400, 'Name and email are required');
+  const password = typeof b.password === 'string' ? b.password : '';
+  if (password.length < 8) throw new HttpError(400, 'Pick a password of at least 8 characters');
   if (one('SELECT 1 FROM users WHERE email = ?', email)) throw new HttpError(409, 'That email already has an account');
   const claims = Array.isArray(b.claims) ? b.claims.map(String).slice(0, 12) : [];
   const id = prefixedId('u');
   run(
-    'INSERT INTO users (id, name, email, role, headline, college_id, org, claims, hue, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO users (id, name, email, role, headline, college_id, org, claims, hue, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     id, name, email, role, String(b.headline ?? ''), b.college_id ? String(b.college_id) : null,
-    b.org ? String(b.org) : null, JSON.stringify(claims), crypto.randomInt(360), now(),
+    b.org ? String(b.org) : null, JSON.stringify(claims), crypto.randomInt(360), hashPassword(password), now(),
   );
   const u = one<UserRow>('SELECT * FROM users WHERE id = ?', id)!;
   res.json({ token: createSession(id), user: publicUser(u) });
@@ -183,10 +200,10 @@ api.post('/nodes', requireRole('club'), (req, res) => {
   let id = `${base}-${String(count + 1).padStart(2, '0')}`;
   while (one('SELECT 1 FROM nodes WHERE id = ?', id)) id += 'x';
   const token = crypto.randomBytes(18).toString('base64url');
-  run('INSERT INTO nodes (id, name, college_id, owner_id, board, token_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    id, name, u.college_id, u.id, board, sha256(token), now());
+  run('INSERT INTO nodes (id, name, college_id, owner_id, board, token_hash, pin_open_until, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    id, name, u.college_id, u.id, board, sha256(token), now() + PAIRING_WINDOW_MS, now());
   broadcast({ type: 'nodes' });
-  // The token is shown once. Only its hash is stored.
+  // The token is shown once. Only its hash is stored. The examiner key is pinned on first connect.
   res.json({ node: nodeView(one<NodeRow>('SELECT * FROM nodes WHERE id = ?', id)!), token });
 });
 
@@ -199,7 +216,7 @@ api.get('/bookings/mine', requireAuth, (req, res) => {
   res.json(rows.map((b) => ({ ...bookingView(b), node: nodeView(one<NodeRow>('SELECT * FROM nodes WHERE id = ?', b.node_id)!) })));
 });
 
-api.post('/bookings', requireAuth, (req, res) => {
+api.post('/bookings', requireAuth, writeLimit, (req, res) => {
   const nodeId = String(req.body?.node_id ?? '');
   const node = one<NodeRow>('SELECT * FROM nodes WHERE id = ?', nodeId);
   if (!node) throw new HttpError(404, 'Lab node not found');
@@ -209,10 +226,20 @@ api.post('/bookings', requireAuth, (req, res) => {
   const startsAt = req.body?.starts_at ? Number(req.body.starts_at) : Math.floor(t / 60_000) * 60_000;
   if (!Number.isFinite(startsAt) || startsAt < t - 5 * 60_000) throw new HttpError(400, 'That slot has already started');
   if (startsAt > t + 7 * 24 * 60 * 60_000) throw new HttpError(400, 'Book at most a week ahead');
+  if (startsAt < t + 5 * 60_000 && !isOnline(nodeId)) {
+    throw new HttpError(503, `${node.name} is offline right now. Pick a later slot, or try again when it's back.`);
+  }
   const endsAt = startsAt + minutes * 60_000;
 
   const id = prefixedId('b');
   tx(() => {
+    const upcoming = all<BookingRow>('SELECT * FROM bookings WHERE user_id = ? AND cancelled = 0 AND ends_at > ?', req.user!.id, t);
+    if (upcoming.filter((b) => b.node_id === nodeId).length >= MAX_UPCOMING_PER_NODE) {
+      throw new HttpError(409, 'You already have a slot on this board. Cancel it to pick another.');
+    }
+    if (upcoming.length >= MAX_UPCOMING_TOTAL) {
+      throw new HttpError(409, `You can hold ${MAX_UPCOMING_TOTAL} upcoming slots at a time. Cancel one to book another.`);
+    }
     const clash = one<BookingRow>(
       'SELECT * FROM bookings WHERE node_id = ? AND cancelled = 0 AND starts_at < ? AND ends_at > ?',
       nodeId, endsAt, startsAt,
@@ -233,6 +260,8 @@ api.delete('/bookings/:id', requireAuth, (req, res) => {
   const b = one<BookingRow>('SELECT * FROM bookings WHERE id = ?', req.params.id);
   if (!b || b.user_id !== req.user!.id) throw new HttpError(404, 'Booking not found');
   run('UPDATE bookings SET cancelled = 1 WHERE id = ?', b.id);
+  // A verdict for it would be refused anyway (no live booking); end the attempt now.
+  cancelAttemptsForBooking(b.id);
   broadcast({ type: 'nodes' });
   res.json({ ok: true });
 });

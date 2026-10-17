@@ -3,6 +3,7 @@ import { requireAuth } from './auth.js';
 import { all, one, run, type AttemptRow, type BookingRow, type ChallengeRow, type NodeRow } from './db.js';
 import { dispatchAttempt } from './hub.js';
 import { isOnline } from './presence.js';
+import { rateLimit } from './ratelimit.js';
 import { makeNonce } from './tests.js';
 import { HttpError, hexId, now } from './util.js';
 import { attemptView } from './views.js';
@@ -13,7 +14,7 @@ const MAX_CODE = 64 * 1024;
 
 // Student submits Verilog. The platform checks the booking, issues a fresh nonce
 // and hands the job to the lab node that owns the board.
-attempts.post('/attempts', requireAuth, (req, res) => {
+attempts.post('/attempts', requireAuth, rateLimit(20, 60_000), (req, res) => {
   const u = req.user!;
   const challengeId = String(req.body?.challenge_id ?? '');
   const nodeId = String(req.body?.node_id ?? '');

@@ -51,6 +51,9 @@ export function checkVerdict(att: AttemptRow, node: NodeRow, payloadText: string
   if (p.node !== att.node_id) return fail('verdict names a different node');
   if (p.challenge !== att.test_id) return fail('verdict is for a different challenge');
   if (p.examiner !== node.examiner_id) return fail('verdict names a different examiner');
+  // The tier is the platform's call (enrollment), so a payload claiming another one is refused
+  // rather than shown next to a label that contradicts it.
+  if (p.kind !== (node.examiner_kind ?? 'sim')) return fail(`verdict says kind "${p.kind}", but this node's examiner is enrolled as "${node.examiner_kind ?? 'sim'}"`);
   checks.push('node, examiner and challenge match');
 
   if (!Number.isInteger(p.counter) || p.counter <= node.last_counter) {

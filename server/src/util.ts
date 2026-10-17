@@ -2,6 +2,9 @@ import crypto from 'node:crypto';
 
 export const now = () => Date.now();
 
+// A node's agent has this long after its token is issued to connect and pin its examiner key.
+export const PAIRING_WINDOW_MS = 24 * 60 * 60_000;
+
 export function hexId(bytes = 4) {
   return crypto.randomBytes(bytes).toString('hex');
 }
@@ -24,6 +27,12 @@ export function fingerprint(pem: string | null | undefined) {
   } catch {
     return null;
   }
+}
+
+// Full SHA-256 over the DER public key: what an enrollment matches against.
+export function keyHash(pem: string) {
+  const der = crypto.createPublicKey(pem).export({ type: 'spki', format: 'der' });
+  return crypto.createHash('sha256').update(der).digest('hex');
 }
 
 export function parseJson<T>(text: string | null | undefined, fallback: T): T {
