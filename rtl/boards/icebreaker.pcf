@@ -1,0 +1,32 @@
+# CampusConnect Labs harness on an iCEBreaker (iCE40UP5K-SG48).
+# Package pins follow the iCEBreaker v1.0 reference pcf; check them against your
+# board revision before flashing. All examiner wiring goes through the PMOD headers
+# (3.3 V on both sides, so wire straight to the ESP32-S3 with a common ground).
+# See docs/HARDWARE.md for the ESP32 side.
+
+# 12 MHz oscillator
+set_io clk 35
+
+# led[7:0] -> PMOD 1A (read by the examiner)
+set_io led[0] 4
+set_io led[1] 2
+set_io led[2] 47
+set_io led[3] 45
+set_io led[4] 3
+set_io led[5] 48
+set_io led[6] 46
+set_io led[7] 44
+
+# sw[5:0], btn[1:0] -> PMOD 1B (driven by the examiner)
+set_io sw[0] 43
+set_io sw[1] 38
+set_io sw[2] 34
+set_io sw[3] 31
+set_io sw[4] 42
+set_io sw[5] 36
+set_io btn[0] 32
+set_io btn[1] 28
+
+# UART -> PMOD 2 pins 1 and 2
+set_io uart_rx 27
+set_io uart_tx 25
