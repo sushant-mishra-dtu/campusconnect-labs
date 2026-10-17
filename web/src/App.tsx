@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
 import { Layout } from './components/Layout';
 import { Loading } from './components/ui';
+import { Attempt } from './pages/Attempt';
 import { ChallengeDetail } from './pages/ChallengeDetail';
 import { Challenges } from './pages/Challenges';
 import { Landing } from './pages/Landing';
@@ -26,6 +27,7 @@ export function App() {
         <Route path="/challenges" element={<Challenges />} />
         <Route path="/challenges/new" element={<Private><PostChallenge /></Private>} />
         <Route path="/challenges/:id" element={<ChallengeDetail />} />
+        <Route path="/challenges/:id/attempt" element={<Private><Attempt /></Private>} />
         <Route path="*" element={<Private><Navigate to="/" replace /></Private>} />
       </Route>
     </Routes>
