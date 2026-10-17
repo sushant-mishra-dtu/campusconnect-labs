@@ -1,0 +1,158 @@
+// CampusConnect Labs lab node agent.
+// Connects out to the platform (so a college firewall is fine), takes one job at a time,
+// builds and flashes the student's design, and relays the examiner's signed verdict.
+import fs from 'node:fs';
+import path from 'node:path';
+import WebSocket from 'ws';
+import { CHALLENGES_DIR, config } from './config.js';
+import { SerialExaminer } from './examiners/serial.js';
+import { SimExaminer, type ExaminerIdentity } from './examiners/sim.js';
+import { buildIce40, flashIce40 } from './flows/ice40.js';
+import { compileSim, examineSim, synthCheck } from './flows/sim.js';
+import { describeTools } from './hdl.js';
+import { lintStudentCode } from './lint.js';
+import type { SignedVerdict } from './payload.js';
+
+interface Job {
+  attempt: string;
+  challenge: string;
+  nonce: string;
+  code: string;
+}
+
+const examiner: { identity: ExaminerIdentity } =
+  config.mode === 'hw'
+    ? await (async () => {
+        if (!config.serial) throw new Error('hw mode needs --serial=<port> for the ESP32 examiner');
+        return SerialExaminer.open(config.serial);
+      })()
+    : new SimExaminer(config.keysDir, config.node);
+
+console.log(`[node] ${config.node} · mode ${config.mode}`);
+console.log(`[node] examiner ${examiner.identity.id} (${examiner.identity.kind})`);
+if (config.info) {
+  console.log(examiner.identity.pubkey);
+  process.exit(0);
+}
+console.log(`[node] tools: ${describeTools(config.mode === 'hw' ? ['yosys', 'nextpnr-ice40', 'icepack', 'iceprog'] : ['yosys', 'iverilog', 'vvp'])}`);
+
+let ws: WebSocket | null = null;
+let rejected = false;
+const queue: Job[] = [];
+let busy = false;
+
+function send(msg: object) {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+}
+
+function connect() {
+  ws = new WebSocket(config.server);
+  ws.on('open', () => {
+    send({ type: 'hello', node: config.node, token: config.token, examiner: examiner.identity, mode: config.mode });
+  });
+  ws.on('message', (raw) => {
+    const msg = JSON.parse(String(raw));
+    if (msg.type === 'welcome') console.log(`[node] connected to ${config.server}, examiner key ${msg.fingerprint}`);
+    else if (msg.type === 'rejected') {
+      rejected = true;
+      console.error(`[node] platform rejected this node: ${msg.reason}`);
+      process.exit(1);
+    } else if (msg.type === 'job') {
+      queue.push(msg as Job);
+      void drain();
+    }
+  });
+  ws.on('close', () => {
+    if (rejected) return;
+    console.log('[node] disconnected, retrying in 3s');
+    setTimeout(connect, 3000);
+  });
+  ws.on('error', (err) => console.error(`[node] ${err.message}`));
+}
+
+async function drain() {
+  if (busy) return;
+  busy = true;
+  while (queue.length) await runJob(queue.shift()!);
+  busy = false;
+}
+
+async function runJob(job: Job) {
+  const log = (line: string) => {
+    console.log(`  ${job.attempt} ${line}`);
+    send({ type: 'log', attempt: job.attempt, line });
+  };
+  const stage = (s: string) => send({ type: 'status', attempt: job.attempt, stage: s });
+  const fail = (s: string, message: string) => {
+    log(`[node] ${message}`);
+    send({ type: 'error', attempt: job.attempt, stage: s, message });
+  };
+
+  const meta = JSON.parse(fs.readFileSync(path.join(CHALLENGES_DIR, job.challenge, 'challenge.json'), 'utf8'));
+  const dir = path.join(config.workDir, job.attempt);
+
+  try {
+    stage('received');
+    log(`[node] job ${job.attempt}: ${meta.title}, nonce ${job.nonce}`);
+    const lint = lintStudentCode(job.code);
+    if (lint) return fail('build', lint);
+
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'dut.v'), job.code);
+
+    let verdict: SignedVerdict;
+    if (config.mode === 'sim') {
+      stage('build');
+      const synthErr = await synthCheck(dir, log);
+      if (synthErr) return fail('build', synthErr);
+      const compileErr = await compileSim(dir, job.challenge, log);
+      if (compileErr) return fail('build', compileErr);
+
+      stage('flash');
+      log('[node] sim mode: no board on this node, loading the compiled model instead of flashing');
+
+      stage('examine');
+      const out = await examineSim(dir, job.nonce, meta.maxSeconds ?? 30, log);
+
+      stage('sign');
+      verdict = (examiner as SimExaminer).sign({
+        attempt: job.attempt,
+        challenge: job.challenge,
+        node: config.node,
+        nonce: job.nonce,
+        measured: out.measured,
+        result: out.result,
+      });
+    } else {
+      stage('build');
+      const buildErr = await buildIce40(dir, config.pcf, log);
+      if (buildErr) return fail('build', buildErr);
+
+      stage('flash');
+      const flashErr = await flashIce40(dir, log);
+      if (flashErr) return fail('flash', flashErr);
+
+      stage('examine');
+      verdict = await (examiner as SerialExaminer).run(
+        { attempt: job.attempt, challenge: job.challenge, node: config.node, nonce: job.nonce },
+        (l) => log(`[examiner] ${l}`),
+        (meta.maxSeconds ?? 30) + 10,
+      );
+      stage('sign');
+    }
+
+    const p = JSON.parse(verdict.payload);
+    log(`[examiner] signed ${p.result.toUpperCase()} with counter ${p.counter}`);
+    send({ type: 'verdict', attempt: job.attempt, ...verdict });
+  } catch (err) {
+    fail('examine', `node error: ${(err as Error).message}`);
+  } finally {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // WSL may still hold the folder for a moment
+    }
+  }
+}
+
+connect();

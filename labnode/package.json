@@ -1,0 +1,24 @@
+{
+  "name": "@ccl/labnode",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Runs next to a lent FPGA board: builds student Verilog, flashes it, and relays the examiner's signed verdict.",
+  "scripts": {
+    "start": "tsx src/agent.ts",
+    "examiner:info": "tsx src/agent.ts --info",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "serialport": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
