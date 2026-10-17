@@ -6,6 +6,7 @@ import { Loading } from './components/ui';
 import { Attempt } from './pages/Attempt';
 import { ChallengeDetail } from './pages/ChallengeDetail';
 import { Challenges } from './pages/Challenges';
+import { Labs } from './pages/Labs';
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
 import { PostChallenge } from './pages/PostChallenge';
@@ -28,6 +29,7 @@ export function App() {
         <Route path="/challenges/new" element={<Private><PostChallenge /></Private>} />
         <Route path="/challenges/:id" element={<ChallengeDetail />} />
         <Route path="/challenges/:id/attempt" element={<Private><Attempt /></Private>} />
+        <Route path="/labs" element={<Labs />} />
         <Route path="*" element={<Private><Navigate to="/" replace /></Private>} />
       </Route>
     </Routes>
