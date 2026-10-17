@@ -1,81 +1,124 @@
 # CampusConnect Labs
 
-**HackShift 2026 · Problem Statement 1: Alumni Network & Professional Connections**
+**HackShift 2026 · Theme 1: Alumni Network & Professional Connections**
 *Building a network, not a directory.*
 
-A professional network where people connect over what they have proven they can do on real hardware. Claims on a profile don't count.
+A professional network where you connect with people by **proving** a skill, not by listing it. An alum posts a hardware challenge with an offer ("pass this and I'll refer you"). A student whose college has no lab borrows a board from another campus over the internet and passes it. The result comes back signed, like a certificate nobody can forge, and that certificate becomes the connection between the student, the alum, and the club that lent the board.
 
-- An **alum, recruiter or founder** posts a hardware challenge with an offer: *"Make this UART work on a real FPGA and I'll refer you."*
-- A **student** sees the gap between their proven skills and the role, and gets the challenge that closes it.
-- A **college club** lends an idle FPGA board as a remote lab node. A student whose college has no lab books a slot on it.
-- The student writes Verilog in the browser. It's synthesized and flashed onto that board, and an **ESP32 examiner** wired to the FPGA drives its inputs, measures its outputs, and **signs the verdict** with a key that never leaves the chip.
-- The platform accepts the verdict only with a valid signature, the nonce it issued, a fresh counter and a matching booking. Then the student gets a badge and a **connection to the author with the proof attached**, and the club that lent the board is linked to the student too.
+## The problem, for people who have never touched an FPGA
 
-There are no follow buttons. Every edge in the graph points to something that happened.
+- Chip designers describe circuits in a language called **Verilog**. It isn't a program that runs step by step; it describes wires and logic gates that all work at the same time.
+- An **FPGA** is a chip that can rewire itself into whatever circuit you described. You load it with a file called a **bitstream**. Engineers use FPGAs to try a design before a factory makes it, and students use them to learn hardware.
+- Code that looks right often fails on a real chip, because real circuits have timing. So hiring managers ask one question: *did you get it working on a board?*
+- Boards and lab time are concentrated in a few colleges. A student at a college with no lab can't answer that question, so "Verilog" on their résumé is just a word, and every profile looks the same.
 
-> **No physical FPGA in this build.** We don't have an iCE40 board, so every lab node simulates one on a laptop. It builds the student's design into the real iCE40 UP5K bitstream, turns that bitstream back into Verilog, and runs the examiner testbench against it. Every proof says this in its signed payload (`"target":"bitstream"`) and on its badge (**Simulated, no physical FPGA**). Nothing here is labelled "Verified on silicon". See [docs/SIMULATION.md](docs/SIMULATION.md).
+**Our fix:** clubs that have boards lend their idle ones as remote **lab nodes**. Next to each board sits a small, separate tester called the **examiner** (an ESP32 microcontroller). It talks to the student's circuit, measures what comes back, and signs the result with a key that never leaves it, like an invigilator signing an answer sheet. The platform only believes signed results, and only signed results create badges and connections.
 
-## Run it
-
-Needs Node 22.13+ (uses the built-in `node:sqlite`), Icarus Verilog 12 or newer and Python 3 for the simulation lab node (Ubuntu 22.04's Icarus package is 11, which can't read the iCE40 cell models). On Windows, `iverilog` inside WSL is picked up automatically. yosys, nextpnr-ice40 and icepack come from npm as WebAssembly, so there's nothing to install for them.
-
-With Docker, `docker compose up -d --build` runs the platform and a simulation lab node together on http://localhost:4000, with live data-flow dashboards at http://localhost:4000/flow and http://localhost:4100. See [docs/DEPLOY.md](docs/DEPLOY.md), which also covers running a college lab node on its own.
-
-```bash
-npm install
-npm run seed       # demo people, challenges, two lab nodes, signed history, a fresh lab node token
-npm run dev        # API on :4000, web app on :5173
-npm run labnode    # in a second terminal: a sim lab node for "Robotics Club bench, IIIT Delhi"
+```
+ student's browser ──Verilog──▶ platform ──job──▶ lab node (a club's laptop + board)
+                                   ▲                  │ builds the circuit, loads it onto the board
+                                   │                  ▼
+            checks the signature ◀─┴── signed result ── examiner (tests the circuit, signs)
 ```
 
-`npm run seed` generates a new token for the demo lab node every time, prints it, and saves it to `labnode/keys/iiitd-01.token` (gitignored), where `npm run labnode` finds it. No token is committed.
+## The story, stage by stage
 
-Open http://localhost:5173 and pick a person. The seeded people are fictional and sign in without a password while **demo sign-in** is on; accounts you create need their password. Demo sign-in is off when `NODE_ENV=production` or `CCL_DEMO_LOGIN=0`; turn it off for any public deploy.
+Three people: **Aarav**, a 3rd-year student at a college with no FPGA lab. **Meera**, an alum who now works at a chip company and is hiring. **Ishaan**, who runs the Robotics Club at IIIT Delhi and lends its board.
 
-| Command | What it does |
-|---|---|
-| `npm run check:rtl` | every reference design must pass its testbench and every starter must fail, simulated as the iCE40 bitstream read back to Verilog, which is what a sim lab node runs (`-- --netlist` simulates yosys's netlist, `-- --rtl` the source) |
-| `npm run check:ice40` | every reference and starter must build to an iCE40 UP5K bitstream with the iCEBreaker pin map and meet 12 MHz (native `nextpnr-ice40`/`icepack` if installed, otherwise the WebAssembly builds from npm) |
-| `npm test -w server` | verdict verification (tampering, wrong key, stale nonce, replayed counter, expired booking, wrong examiner tier), node pairing and silicon enrollment, one proof connection per challenge, sign-in, booking limits |
-| `npm run admin -w server -- list` | operator commands: `enroll` an ESP32 examiner key as silicon, rotate a node `token`, `unpin` a node's examiner |
-| `npm run build && npm start` | production build served by the API server on :4000 |
+These are real screenshots of one run, taken by [a headless browser](tools/readme-shots.mjs) on our deployed demo.
 
-## Demo people
+### 1. Aarav sees his gap
 
-| Who | Role | Try |
-|---|---|---|
-| Aarav Sharma | 3rd-year ECE, college with no FPGA lab | Home shows the gap for *FPGA Design Intern*. Book a board, pass *UART nonce echo* |
-| Meera Iyer | Alum, FPGA engineer | The proof lands in her inbox. Send the referral |
-| Ishaan Verma | Robotics Club lead, IIIT Delhi | Owns the live lab node, sees who it served |
-| Kabir, Tanya, Diya, Farhan | Students | Seeded history: badges, referrals, a mentorship |
-| Rohan Gupta, Kavya Nair | Founder, recruiter | More challenges and offers |
+Aarav wants Meera's *FPGA Design Intern* role. His profile says Verilog, FPGA and Embedded C, but they're struck through: nobody has tested them, so they count for nothing. He has 0 of the 6 skills the role needs. The page suggests challenges that close the gap, and the top one is Meera's, with her offer attached.
 
-People, companies and two of the colleges are fictional. The full walkthrough is in [docs/DEMO.md](docs/DEMO.md).
+![Aarav's home page: 0 of 6 skills proven, his typed claims struck through, and challenges that close the gap](docs/screenshots/02-student-gap.png)
+
+### 2. Meera's challenge comes with an offer
+
+*"Make this UART work on a real FPGA and I'll refer you to our FPGA prototyping team."* A **UART** is the simplest way two chips talk: bits sent one after another down a wire at an agreed speed (115,200 per second here). The test: the examiner sends a random code made up for this attempt only (a **nonce**), and the circuit must echo it back at the right speed. A fresh code every time means you can't replay someone else's answer.
+
+![The UART challenge: Meera's offer, the spec, and how the examiner tests it](docs/screenshots/03-challenge.png)
+
+### 3. He borrows a board from another campus
+
+Clubs list the boards they lend and when they're free. Aarav picks the Robotics Club bench at IIIT Delhi.
+
+![Labs: boards lent by clubs at other colleges, two online now](docs/screenshots/04-labs.png)
+
+### 4. He books a slot and writes the circuit
+
+He books 30 minutes on the board, writes his Verilog in the browser, and presses **Build & simulate**. The bar on the right tracks the six steps the attempt goes through.
+
+![The editor: Verilog on the left, a booked slot and the Build button on the right](docs/screenshots/05-booked.png)
+
+### 5. The lab node builds it and the examiner tests it
+
+This is the lab node's own dashboard, on the club's machine. In plain words, left to right: check the code, turn it into logic gates (**yosys**), lay those gates out on the chip and wire them (**nextpnr**), pack the result into the bitstream a real board would be loaded with (**icepack**). We have no physical board, so the node turns that same bitstream back into a circuit (**icebox_vlog**) and runs it in a simulator (**iverilog**, **vvp**). The examiner sends the nonce, measures the reply (115,385 bits per second; it must be within 3% of 115,200), and signs **PASS**. The whole attempt takes about 15 to 25 seconds on our demo server.
+
+![Lab node dashboard: every build stage with its time, the tool output, and the signed PASS](docs/screenshots/10-node-done.png)
+
+### 6. The platform checks the result before it believes it
+
+The platform's live data-flow page shows every request, database write and message as it happens. The club's laptop only carries messages, and the platform runs six checks before writing anything: the signature is valid, the nonce is the one it issued, the node and challenge match, the result says what was tested, the examiner's counter has gone up (an old result can't be replayed), and Aarav really had that board booked. Then it records the proof, the badge, and two connections.
+
+![Platform data-flow dashboard: browsers, API, database, WebSocket hub, lab nodes on two machines, and the attempt's timeline](docs/screenshots/11-flow-done.png)
+
+### 7. Pass: a badge and a connection
+
+Aarav sees every check pass in his console. He now holds the badge, and he's connected to Meera with the proof attached.
+
+![PASS · verified: every check listed, badge issued, connected to Meera](docs/screenshots/09-attempt-pass.png)
+
+### 8. Meera gets the proof, not a résumé
+
+The signed proof lands in Meera's inbox: who did it, on which board, signed by which examiner. She sends the referral she promised.
+
+![Meera's home: a proof addressed to her, with Send referral and Offer mentorship](docs/screenshots/12-author-inbox.png)
+
+### 9. Aarav's profile now says something
+
+His UART badge proves six skills, four of them ones the internship needed, and links to the signed proof. His typed claims are still struck through. He has three connections, and each one points at something that happened: Meera referred him, he proved a skill for Meera, and Ishaan's club lent him a board.
+
+![Aarav's profile: proven skills, struck-through claims, and three connections each backed by an event](docs/screenshots/13-student-profile.png)
+
+### 10. Anyone can check a proof, without trusting us
+
+Every proof has a public page showing exactly what the examiner signed. **Verify signature** checks it in your own browser against the examiner's public key. Change one character, or press **Flip the result** to turn the pass into a fail, and the signature stops checking out.
+
+<p align="center"><img src="docs/screenshots/14-proof-verified.png" width="80%" alt="Proof page: the signed payload, the six checks, and an in-browser signature check that says Valid"></p>
+
+### 11. The network is made of things that happened
+
+There are no follow buttons. Every line in the graph is a challenge passed, a board lent, a referral sent or a mentorship started, and every one links to its proof.
+
+![The network graph: proved_for, lent_board, referred and mentored edges, with the latest connections listed](docs/screenshots/15-network.png)
+
+## What's real, and what's simulated
+
+**We don't have an FPGA board**, so every lab node in this build simulates one. It still builds the real iCE40 bitstream a board would be loaded with, then tests a circuit decoded from that bitstream, not the student's source code. Every proof says this inside what was signed (`"target":"bitstream"`) and on its badge: **Simulated, no physical FPGA**. In simulation the examiner is a program on the lab node's laptop and its key is stored there, so a simulated proof is weaker evidence than one from a real examiner chip, and the proof page says so. Nothing is labelled "Verified on silicon".
+
+The examiner firmware runs on a real ESP32-S3 and signs verdicts that verify. It just has no FPGA to be wired to yet. With one plugged in, the lab node loads the board instead of the simulator, and the same pipeline, checks and proof pages apply. Details in [docs/SIMULATION.md](docs/SIMULATION.md).
+
+## Try it
+
+```bash
+docker compose up -d --build
+```
+
+Then open http://localhost:4000 and sign in as Aarav or Meera (demo sign-in, no password). The data-flow dashboards are at http://localhost:4000/flow (platform) and http://localhost:4100 (lab node).
+
+Without Docker, setup, tests and operator commands are in [docs/DEVELOPING.md](docs/DEVELOPING.md). Running a college's lab node on its own machine is in [docs/DEPLOY.md](docs/DEPLOY.md), and the 4-minute stage demo is [docs/DEMO.md](docs/DEMO.md).
 
 ## What's in the repo
 
 | Folder | What lives there |
 |---|---|
 | [`rtl/`](rtl) | Four hardware challenges: spec, starter, reference solution, examiner testbench |
-| [`server/`](server) | API, booking checks, verdict verification, WebSocket hub, SQLite |
+| [`server/`](server) | API, booking checks, verdict verification, WebSocket hub, SQLite, the `/flow` dashboard |
 | [`web/`](web) | Verilog editor with live console, labs and booking, profiles, proof page, network graph |
-| [`labnode/`](labnode) | Agent next to a lent board: yosys/nextpnr/iceprog (hardware) or yosys/iverilog (sim) |
-| [`examiner/`](examiner) | ESP32-S3 firmware that tests the FPGA pins and signs verdicts |
-| [`docs/`](docs) | [Architecture](docs/ARCHITECTURE.md) · [Verdict protocol](docs/PROTOCOL.md) · [Simulation, no FPGA](docs/SIMULATION.md) · [Hardware wiring](docs/HARDWARE.md) · [Demo script](docs/DEMO.md) |
-
-## What is real today, and what isn't yet
-
-| Working | Not yet |
-|---|---|
-| Full loop in simulation, no FPGA: browser → booking check → lab node → yosys → nextpnr → icepack → bitstream read back to Verilog → iverilog examiner → signed verdict → verification → badge, connection, referral | Any physical FPGA. We have no board, so no verdict is "Verified on silicon" |
-| Every challenge builds to an iCE40 UP5K bitstream that meets 12 MHz, and that same bitstream passes (reference) or fails (starter) its testbench | Flash/NVS encryption and secure boot on the ESP32 |
-| ESP32-S3 examiner firmware flashed to a real ESP32-S3: on-chip key, runs a test on its GPIOs, signs verdicts that verify | The ESP32 examining a real FPGA (nothing to wire it to) |
-| ECDSA P-256 signatures, nonce per attempt, monotonic counter, key pinning per node with a pairing window | College SSO and email verification (sign-in is email and password) |
-| Student code is only ever read by yosys compiled to WebAssembly, which can't see the lab node's files; the testbench runs against what was decoded from the bitstream, so a design can't print its own verdict | An OS-level sandbox around iverilog and icebox_vlog (they see only what was unpacked from the bitstream, never student source) |
-| In-browser re-verification of any proof with WebCrypto | Proof of key possession when a node connects (today the node token authenticates it) |
-| Skill-gap matching from proven skills only | |
-
-Proofs from the simulation examiner are labelled **Simulated, no physical FPGA**, and the proof page says what was simulated. **Verified on silicon** needs an ESP32 examiner whose public key the platform operator enrolled for that node (`npm run admin -w server -- enroll`); what a node says about itself doesn't count.
+| [`labnode/`](labnode) | Agent beside a lent board: builds the design, runs the examiner, has its own dashboard |
+| [`examiner/`](examiner) | ESP32-S3 firmware that tests the FPGA's pins and signs verdicts |
+| [`docs/`](docs) | [Architecture](docs/ARCHITECTURE.md) · [Verdict protocol](docs/PROTOCOL.md) · [Simulation](docs/SIMULATION.md) · [Hardware wiring](docs/HARDWARE.md) · [Deploy](docs/DEPLOY.md) · [Demo script](docs/DEMO.md) |
 
 ## Team
 
