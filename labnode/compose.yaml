@@ -17,6 +17,10 @@ services:
       CCL_NODE_TOKEN: ${CCL_NODE_TOKEN:?set CCL_NODE_TOKEN to the node token}
       CCL_MODE: ${CCL_MODE:-sim}
       CCL_SERIAL: ${CCL_SERIAL:-}
+      # The node's own dashboard, on http://<this machine>:4100
+      CCL_DASHBOARD_PORT: "4100"
+    ports:
+      - "${CCL_DASHBOARD_HOST_PORT:-4100}:4100"
     volumes:
       - keys:/keys
     # hw mode: pass the ESP32 examiner and the iCEBreaker's USB through, then set CCL_MODE=hw and

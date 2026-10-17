@@ -28,6 +28,17 @@ docker compose up -d --build
 
 The database lives in the `platform-data` volume and the sim examiner key in `labnode-keys`. Keep `labnode-keys`: a node that comes back with a new key is refused, because the platform pinned the old one. If it's lost, run `admin unpin iiitd-01` to reopen pairing.
 
+## Dashboards
+
+Both servers have a live data-flow dashboard, on in the compose files.
+
+| Dashboard | URL | Shows |
+|---|---|---|
+| Platform | `http://<platform host>:4000/flow` | every request, database read and write, socket message, job, stage, signed verdict, verdict check and push, as packets moving between browsers, the API, the hub, the verdict check, SQLite and each lab node; each attempt's pipeline with timings; which nodes dial in from this machine and which from another |
+| Lab node | `http://<node host>:4100` | the platform connection, each job moving through the node's pipeline (lint → yosys → iverilog → vvp → examiner in sim; through nextpnr, icepack, iceprog, the board and the ESP32 in hw) with the time spent at each station, and tool output |
+
+They are off outside compose unless `CCL_FLOW_DASHBOARD=1` (platform) or `CCL_DASHBOARD_PORT` (lab node) is set. Neither shows tokens, keys, passwords or student code, but both show names, ids and tool output, so keep them off public addresses.
+
 ## A college lab node
 
 The club registers the board on the Labs page (Lend a board), which shows the node id and a token once. Or the operator issues a token with `admin token <node>`. On the college machine:

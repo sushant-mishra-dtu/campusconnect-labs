@@ -5,6 +5,8 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { attempts } from './attempts.js';
 import { optionalAuth } from './auth.js';
 import { db, one } from './db.js';
+import { traceHttp } from './flow.js';
+import { flow } from './flow-routes.js';
 import { attachHub, failOrphanedAttempts } from './hub.js';
 import { WEB_DIST } from './paths.js';
 import { clients, nodeSockets } from './presence.js';
@@ -27,8 +29,11 @@ const trustProxy = process.env.CCL_TRUST_PROXY;
 if (trustProxy) app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
 app.use(express.json({ limit: '256kb' }));
 app.use(optionalAuth);
+app.use(traceHttp);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+// The flow dashboard (/flow) and its data, when CCL_FLOW_DASHBOARD=1
+app.use(flow);
 app.use('/api', api);
 app.use('/api', attempts);
 app.use('/api', (_req, _res, next) => next(new HttpError(404, 'No such endpoint')));

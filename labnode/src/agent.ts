@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import WebSocket from 'ws';
 import { CHALLENGES_DIR, config } from './config.js';
+import { startDashboard } from './dashboard.js';
 import { SerialExaminer } from './examiners/serial.js';
 import { SimExaminer, type ExaminerIdentity } from './examiners/sim.js';
 import { buildIce40, flashIce40 } from './flows/ice40.js';
@@ -12,6 +13,7 @@ import { compileSim, examineSim, synthNetlist } from './flows/sim.js';
 import { describeTools, toolVersion } from './hdl.js';
 import { lintStudentCode } from './lint.js';
 import type { SignedVerdict } from './payload.js';
+import { trace } from './trace.js';
 
 interface Job {
   attempt: string;
@@ -34,6 +36,49 @@ function jobProblem(job: Job) {
   return null;
 }
 
+// The stations a job passes through on this node, as the dashboard draws them
+const PIPELINE =
+  config.mode === 'hw'
+    ? [
+        { id: 'lint', title: 'Lint', sub: 'early, friendly errors' },
+        { id: 'yosys', title: 'yosys · WebAssembly', sub: 'sees only dut.v' },
+        { id: 'nextpnr', title: 'nextpnr-ice40', sub: 'place and route' },
+        { id: 'icepack', title: 'icepack', sub: 'pack the bitstream' },
+        { id: 'iceprog', title: 'iceprog', sub: 'flash over USB' },
+        { id: 'board', title: 'iCE40 board', sub: 'runs the design' },
+        { id: 'esp32', title: 'ESP32 examiner', sub: 'measures pins, signs' },
+      ]
+    : [
+        { id: 'lint', title: 'Lint', sub: 'early, friendly errors' },
+        { id: 'yosys', title: 'yosys · WebAssembly', sub: 'sees only dut.v' },
+        { id: 'iverilog', title: 'iverilog', sub: 'netlist + testbench' },
+        { id: 'vvp', title: 'vvp', sub: 'runs the examiner testbench' },
+        { id: 'examiner', title: 'Sim examiner', sub: 'P-256 key on this machine' },
+      ];
+// Tool output prefix → station, so the dashboard can follow steps that run inside one call
+const PREFIX: Record<string, string> = {
+  yosys: 'yosys',
+  iverilog: 'iverilog',
+  'nextpnr-ice40': 'nextpnr',
+  icepack: 'icepack',
+  iceprog: 'iceprog',
+  examiner: config.mode === 'hw' ? 'esp32' : 'vvp',
+};
+
+interface JobView {
+  attempt: string;
+  challenge: string;
+  nonce: string;
+  bytes: number;
+  received: number;
+  at: string;
+  steps: { at: string; t: number; ms: number; label: string }[];
+  result: 'pass' | 'fail' | 'error' | null;
+  error?: string;
+  counter?: number;
+  total?: number;
+}
+
 const examiner: { identity: ExaminerIdentity } =
   config.mode === 'hw'
     ? await (async () => {
@@ -52,11 +97,13 @@ if (config.info) {
   console.log(examiner.identity.pubkey);
   process.exit(0);
 }
-console.log(`[node] tools: yosys: wasm sandbox, ${describeTools(config.mode === 'hw' ? ['nextpnr-ice40', 'icepack', 'iceprog'] : ['iverilog', 'vvp'])}`);
+const tools = `yosys: wasm sandbox, ${describeTools(config.mode === 'hw' ? ['nextpnr-ice40', 'icepack', 'iceprog'] : ['iverilog', 'vvp'])}`;
+console.log(`[node] tools: ${tools}`);
 
 // The netlist is simulated against yosys's cells_sim.v, which gives some primitive inputs default
 // values in the port list. Icarus Verilog reads that from version 12; with 11 (Ubuntu 22.04's
 // package) every build fails with "Errors in port declarations", so refuse to start instead.
+let iverilog: string | null = null;
 if (config.mode === 'sim') {
   const version = toolVersion('iverilog');
   const major = Number(/version (\d+)/i.exec(version ?? '')?.[1]);
@@ -65,7 +112,26 @@ if (config.mode === 'sim') {
     process.exit(1);
   }
   if (Number.isNaN(major)) console.warn(`[node] couldn't read the Icarus Verilog version from "${version.trim()}"; builds need 12 or newer`);
+  iverilog = version.trim();
 }
+
+// What the dashboard shows about this node, kept current as things happen
+const status = {
+  node: config.node,
+  mode: config.mode,
+  platform: config.server,
+  started: Date.now(),
+  connection: 'connecting' as 'connecting' | 'paired' | 'disconnected' | 'refused',
+  since: null as number | null,
+  refusal: null as string | null,
+  examiner: { id: examiner.identity.id, kind: examiner.identity.kind as string, fingerprint: null as string | null, counter: null as number | null },
+  tools,
+  iverilog,
+  pipeline: PIPELINE,
+  job: null as JobView | null,
+  jobs: [] as JobView[],
+};
+if (config.dashboardPort) startDashboard(config.dashboardPort, () => ({ ...status, now: Date.now() }));
 
 let ws: WebSocket | null = null;
 let rejected = false;
@@ -80,6 +146,7 @@ function connect() {
   ws = new WebSocket(config.server);
   ws.on('open', () => {
     send({ type: 'hello', node: config.node, token: config.token, examiner: examiner.identity, mode: config.mode });
+    trace('socket', 'agent', 'platform', `hello: node ${config.node}, examiner ${examiner.identity.id} and its public key`);
   });
   ws.on('message', (raw) => {
     let msg;
@@ -88,10 +155,17 @@ function connect() {
     } catch {
       return;
     }
-    if (msg.type === 'welcome') console.log(`[node] connected to ${config.server}, examiner key ${msg.fingerprint}`);
-    else if (msg.type === 'rejected') {
+    if (msg.type === 'welcome') {
+      console.log(`[node] connected to ${config.server}, examiner key ${msg.fingerprint}`);
+      Object.assign(status, { connection: 'paired', since: Date.now(), refusal: null });
+      status.examiner.fingerprint = msg.fingerprint ?? null;
+      if (msg.kind) status.examiner.kind = msg.kind;
+      trace('socket', 'platform', 'agent', `welcome · examiner key ${msg.fingerprint} accepted as ${msg.kind === 'esp32' ? 'silicon' : 'simulation'}`);
+    } else if (msg.type === 'rejected') {
       console.error(`[node] platform rejected this node: ${msg.reason}`);
+      trace('error', 'platform', 'agent', `refused: ${msg.reason}`, { ok: false });
       if (msg.retry) return; // another session for this node is still open; the close handler retries
+      Object.assign(status, { connection: 'refused', refusal: String(msg.reason) });
       rejected = true;
       process.exit(1);
     } else if (msg.type === 'job') {
@@ -100,12 +174,15 @@ function connect() {
         console.error('[node] ignored a job with a malformed attempt id');
         return;
       }
+      trace('job', 'platform', 'agent', `job ${msg.attempt} · ${msg.challenge} · nonce ${msg.nonce} · ${Buffer.byteLength(String(msg.code ?? ''))} bytes of Verilog`, { attempt: msg.attempt });
       queue.push(msg as Job);
       void drain();
     }
   });
   ws.on('close', () => {
     if (rejected) return;
+    if (status.connection === 'paired') trace('socket', 'platform', 'agent', 'connection closed; retrying every 3 s', { ok: false });
+    status.connection = 'disconnected';
     console.log('[node] disconnected, retrying in 3s');
     setTimeout(connect, 3000);
   });
@@ -120,14 +197,51 @@ async function drain() {
 }
 
 async function runJob(job: Job) {
+  const view: JobView = {
+    attempt: job.attempt,
+    challenge: job.challenge,
+    nonce: job.nonce,
+    bytes: Buffer.byteLength(String(job.code ?? '')),
+    received: Date.now(),
+    at: 'agent',
+    steps: [],
+    result: null,
+  };
+  status.job = view;
+  let mark = view.received;
+  let pos = -1;
+  // Moves the job to the next station on the dashboard, with the time spent at the one before
+  const advance = (to: string, label: string) => {
+    if (to === view.at) return;
+    const now = Date.now();
+    trace('stage', view.at, to, label, { attempt: job.attempt, ms: now - mark });
+    view.steps.push({ at: to, t: now, ms: now - mark, label });
+    view.at = to;
+    pos = to === 'agent' ? PIPELINE.length : PIPELINE.findIndex((p) => p.id === to);
+    mark = now;
+  };
+  const finish = (result: 'pass' | 'fail' | 'error', error?: string) => {
+    Object.assign(view, { result, error, total: Date.now() - view.received });
+    status.jobs.unshift(view);
+    status.jobs.length = Math.min(status.jobs.length, 12);
+  };
+
   const log = (line: string) => {
     console.log(`  ${job.attempt} ${line}`);
     send({ type: 'log', attempt: job.attempt, line });
+    const tool = PREFIX[/^\[([\w-]+)\]/.exec(line)?.[1] ?? ''];
+    if (tool && PIPELINE.findIndex((p) => p.id === tool) > pos) advance(tool, `${tool} running`);
+    trace('log', tool ?? 'agent', tool ?? 'agent', line, { attempt: job.attempt });
   };
-  const stage = (s: string) => send({ type: 'status', attempt: job.attempt, stage: s });
+  const stage = (s: string) => {
+    send({ type: 'status', attempt: job.attempt, stage: s });
+    trace('status', 'agent', 'platform', `${job.attempt} · ${s}`, { attempt: job.attempt });
+  };
   const fail = (s: string, message: string) => {
     log(`[node] ${message}`);
     send({ type: 'error', attempt: job.attempt, stage: s, message });
+    trace('error', 'agent', 'platform', `${job.attempt} · ${s}: ${message}`, { attempt: job.attempt, ok: false });
+    finish('error', message);
   };
 
   const dir = path.join(config.workDir, job.attempt);
@@ -140,6 +254,7 @@ async function runJob(job: Job) {
     if (problem) return fail('build', problem);
     const meta = JSON.parse(fs.readFileSync(path.join(CHALLENGES_DIR, job.challenge, 'challenge.json'), 'utf8'));
     log(`[node] job ${job.attempt}: ${meta.title}, nonce ${job.nonce}`);
+    advance('lint', 'check the source');
     const lint = lintStudentCode(job.code);
     if (lint) return fail('build', lint);
 
@@ -149,8 +264,10 @@ async function runJob(job: Job) {
     let verdict: SignedVerdict;
     if (config.mode === 'sim') {
       stage('build');
+      advance('yosys', 'synthesize to a gate-level netlist');
       const synthErr = await synthNetlist(dir, log);
       if (synthErr) return fail('build', synthErr);
+      advance('iverilog', 'netlist ready');
       const compileErr = await compileSim(dir, job.challenge, log);
       if (compileErr) return fail('build', compileErr);
 
@@ -158,9 +275,11 @@ async function runJob(job: Job) {
       log('[node] sim mode: no board on this node, loading the compiled model instead of flashing');
 
       stage('examine');
+      advance('vvp', 'compiled with the examiner testbench');
       const out = await examineSim(dir, job.nonce, meta.maxSeconds ?? 30, log);
 
       stage('sign');
+      advance('examiner', `measured ${JSON.stringify(out.measured)} → ${out.result}`);
       verdict = (examiner as SimExaminer).sign({
         attempt: job.attempt,
         challenge: job.challenge,
@@ -171,14 +290,18 @@ async function runJob(job: Job) {
       });
     } else {
       stage('build');
+      advance('yosys', 'synthesize, then place, route and pack');
       const buildErr = await buildIce40(dir, config.pcf, log);
       if (buildErr) return fail('build', buildErr);
 
       stage('flash');
+      advance('iceprog', 'bitstream ready');
       const flashErr = await flashIce40(dir, log);
       if (flashErr) return fail('flash', flashErr);
+      advance('board', 'bitstream loaded into the FPGA');
 
       stage('examine');
+      advance('esp32', 'the ESP32 drives and measures the pins');
       verdict = await (examiner as SerialExaminer).run(
         { attempt: job.attempt, challenge: job.challenge, node: config.node, nonce: job.nonce },
         (l) => log(`[examiner] ${l}`),
@@ -188,8 +311,16 @@ async function runJob(job: Job) {
     }
 
     const p = JSON.parse(verdict.payload);
+    advance('agent', `signed ${String(p.result).toUpperCase()} · counter ${p.counter}`);
     log(`[examiner] signed ${p.result.toUpperCase()} with counter ${p.counter}`);
     send({ type: 'verdict', attempt: job.attempt, ...verdict });
+    trace('verdict', 'agent', 'platform', `${job.attempt} · ${String(p.result).toUpperCase()} · counter ${p.counter} · ${Buffer.from(verdict.sig, 'base64').length} B signature`, {
+      attempt: job.attempt,
+      ok: p.result === 'pass',
+    });
+    status.examiner.counter = p.counter;
+    view.counter = p.counter;
+    finish(p.result === 'pass' ? 'pass' : 'fail');
   } catch (err) {
     fail('examine', `node error: ${(err as Error).message}`);
   } finally {

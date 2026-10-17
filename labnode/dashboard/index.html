@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab node · CampusConnect Labs</title>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #12181f; --panel-2: #18222c; --line: #232f3b; --line-2: #2f3e4d;
+    --text: #dfe6ec; --muted: #8b99a6; --faint: #5d6b78;
+    --socket: #5fd1b5; --job: #ffcb6b; --stage: #ff9d6c; --status: #8fa8ff; --log: #6f8193;
+    --verdict: #b5e57c; --error: #ff5d73; --ok: #6fdc8c; --bad: #ff5d73; --accent: #ff9d6c;
+    --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); display: grid; grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr); }
+  header { display: flex; align-items: center; gap: 20px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 16px; font-weight: 650; }
+  header h1 span { color: var(--muted); font-weight: 500; }
+  .conn { font: 600 12px var(--mono); padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor; }
+  .conn.paired { color: var(--ok); }
+  .conn.connecting, .conn.disconnected { color: var(--job); }
+  .conn.refused { color: var(--bad); }
+  .meta { font: 12px var(--mono); color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+  .meta b { color: var(--text); font-weight: 500; }
+  .stats { display: flex; gap: 18px; margin-left: auto; }
+  .stat { display: flex; flex-direction: column; min-width: 56px; }
+  .stat b { font: 600 17px var(--mono); font-variant-numeric: tabular-nums; }
+  .stat small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  #diagram { min-height: 0; padding: 6px 12px 0; }
+  svg { width: 100%; height: 100%; display: block; }
+  .box rect { fill: var(--panel); stroke: var(--line-2); stroke-width: 1.4; transition: stroke 0.25s, fill 0.25s; }
+  .box.here rect { stroke: var(--accent); stroke-width: 2.4; fill: #1d1a17; }
+  .box.hit rect { stroke: #fff; fill: var(--panel-2); }
+  .box .t { fill: var(--text); font: 600 14px var(--sans); }
+  .box .s { fill: var(--muted); font: 11.5px var(--mono); }
+  .box .v { fill: var(--accent); font: 600 12px var(--mono); }
+  .edge { fill: none; stroke: var(--line-2); stroke-width: 1.6; }
+  .elabel { fill: var(--faint); font: 11px var(--mono); }
+  .particle { filter: drop-shadow(0 0 5px currentColor); }
+  .bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-top: 1px solid var(--line); min-height: 0; }
+  section { display: flex; flex-direction: column; min-height: 0; }
+  section + section { border-left: 1px solid var(--line); }
+  section h2 { margin: 0; padding: 10px 16px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--line); }
+  .scroll { overflow-y: auto; min-height: 0; flex: 1; }
+  .job { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .job .top { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .job .id { font: 600 15px var(--mono); }
+  .job .sub { color: var(--muted); font-size: 13px; }
+  .res { margin-left: auto; font: 600 12px var(--mono); padding: 2px 10px; border-radius: 999px; }
+  .res.pass { background: var(--ok); color: #0b0f14; }
+  .res.fail, .res.error { background: var(--bad); color: #0b0f14; }
+  .res.run { background: var(--accent); color: #0b0f14; }
+  .steps { margin-top: 10px; display: grid; grid-template-columns: 70px 150px minmax(0, 1fr); gap: 2px 12px; font: 12px/1.6 var(--mono); }
+  .steps .ms { color: var(--accent); text-align: right; font-variant-numeric: tabular-nums; }
+  .steps .hop { color: var(--text); }
+  .steps .lb { color: var(--muted); overflow-wrap: anywhere; }
+  table { width: 100%; border-collapse: collapse; font: 12px var(--mono); }
+  th, td { text-align: left; padding: 5px 16px; border-bottom: 1px solid rgba(35,47,59,0.7); }
+  th { color: var(--faint); font-weight: 500; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .term { font: 12px/1.55 var(--mono); padding: 8px 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .term div { color: var(--muted); }
+  .term .yosys { color: #9ecbff; } .term .iverilog { color: #c3a6ff; } .term .examiner { color: var(--verdict); } .term .node { color: var(--job); }
+  .empty { color: var(--faint); padding: 16px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Lab node <span>· loading</span></h1>
+  <span class="conn connecting" id="conn">connecting</span>
+  <div class="meta" id="meta"></div>
+  <div class="stats">
+    <div class="stat"><b id="s-jobs">0</b><small>jobs</small></div>
+    <div class="stat"><b id="s-pass">0</b><small>passed</small></div>
+    <div class="stat"><b id="s-avg">–</b><small>avg job</small></div>
+    <div class="stat"><b id="s-up">–</b><small>uptime</small></div>
+  </div>
+</header>
+
+<div id="diagram">
+  <svg id="svg" viewBox="0 0 1200 430" role="img" aria-label="Live diagram of a job moving from the platform through this lab node's pipeline and back as a signed verdict">
+    <g id="edges"></g><g id="labels"></g><g id="boxes"></g><g id="particles"></g>
+  </svg>
+</div>
+
+<div class="bottom">
+  <section>
+    <h2>Current job</h2>
+    <div class="scroll">
+      <div id="job"><div class="empty">Waiting for a job from the platform.</div></div>
+      <table id="jobs" hidden><thead><tr><th>attempt</th><th>challenge</th><th>result</th><th>time</th><th>counter</th><th>when</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+  <section>
+    <h2>Tool output</h2>
+    <div class="scroll" id="termwrap"><div class="term" id="term"></div></div>
+  </section>
+</div>
+
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const $ = (id) => document.getElementById(id);
+const css = (k) => getComputedStyle(document.documentElement).getPropertyValue('--' + k).trim() || '#fff';
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const el = (tag, attrs = {}, text) => {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+};
+const boxes = {};
+const edges = {};
+let pipelineSig = '';
+const fit = (text, w, px) => {
+  const n = Math.floor((w - 24) / px);
+  return text.length > n ? text.slice(0, n - 1) + '…' : text;
+};
+
+function box(id, x, y, w, h, title, sub) {
+  const g = el('g', { class: 'box' });
+  g.append(el('rect', { x, y, width: w, height: h, rx: 12 }));
+  g.append(el('text', { class: 't', x: x + 14, y: y + 26 }, fit(title, w, 8.2)));
+  const s = el('text', { class: 's', x: x + 14, y: y + 46 }, fit(sub, w, 6.9));
+  const v = el('text', { class: 'v', x: x + 14, y: y + h - 16 }, '');
+  g.append(s, v);
+  $('boxes').append(g);
+  boxes[id] = { g, s, v, w };
+}
+function edge(key, d) {
+  const p = el('path', { class: 'edge', d });
+  $('edges').append(p);
+  edges[key] = p;
+}
+
+function drawDiagram(state) {
+  const sig = state.mode + ':' + state.pipeline.map((p) => p.id).join(',');
+  if (sig === pipelineSig) return;
+  pipelineSig = sig;
+  for (const g of ['edges', 'labels', 'boxes']) $(g).replaceChildren();
+  for (const k in boxes) delete boxes[k];
+  for (const k in edges) delete edges[k];
+
+  box('platform', 24, 150, 236, 120, 'Platform', '');
+  box('agent', 340, 150, 214, 120, 'Lab node agent', '');
+  edge('platform>agent', 'M260,210 L340,210');
+  $('labels').append(el('text', { class: 'elabel', x: 262, y: 198 }, 'WebSocket'));
+
+  const P = state.pipeline, n = P.length, top = Math.ceil(n / 2);
+  const x0 = 630, span = 550, gap = 28;
+  const w = Math.min(176, (span - (top - 1) * gap) / top);
+  const colX = (i) => x0 + i * (w + gap);
+  const pos = [];
+  P.forEach((p, i) => {
+    const onTop = i < top;
+    const col = onTop ? i : top - 1 - (i - top);
+    const x = colX(col), y = onTop ? 40 : 290, h = 100;
+    pos.push({ x, y, w, h });
+    box(p.id, x, y, w, h, p.title, p.sub);
+  });
+  edge('agent>' + P[0].id, `M554,180 C600,180 590,90 ${pos[0].x},90`);
+  for (let i = 0; i < n - 1; i++) {
+    const a = pos[i], b = pos[i + 1];
+    let d;
+    if (a.y === b.y) d = a.y === 40 ? `M${a.x + a.w},90 L${b.x},90` : `M${a.x},340 L${b.x + b.w},340`;
+    else d = `M${a.x + a.w / 2},${a.y + a.h} L${b.x + b.w / 2},${b.y}`;
+    edge(P[i].id + '>' + P[i + 1].id, d);
+  }
+  const last = pos[n - 1];
+  edge(P[n - 1].id + '>agent', `M${last.x},340 C${last.x - 80},340 600,240 554,240`);
+  $('labels').append(el('text', { class: 'elabel', x: 566, y: 300 }, 'signed verdict'));
+}
+
+function edgeFor(from, to) {
+  if (edges[from + '>' + to]) return { p: edges[from + '>' + to], rev: false };
+  if (edges[to + '>' + from]) return { p: edges[to + '>' + from], rev: true };
+  return null;
+}
+function hit(id) {
+  const b = boxes[id];
+  if (!b) return;
+  b.g.classList.add('hit');
+  clearTimeout(b.timer);
+  b.timer = setTimeout(() => b.g.classList.remove('hit'), 360);
+}
+let live = 0;
+function fire(e) {
+  const r = e.from === e.to ? null : edgeFor(e.from, e.to);
+  if (!r || reduced || live > 60) { hit(e.to); return; }
+  const len = r.p.getTotalLength();
+  const colour = css(e.kind);
+  const c = el('circle', { r: 6, class: 'particle', fill: colour, style: `color:${colour}` });
+  $('particles').append(c);
+  live++;
+  const dur = 820, t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / dur), ease = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    const pt = r.p.getPointAtLength((r.rev ? 1 - ease : ease) * len);
+    c.setAttribute('cx', pt.x);
+    c.setAttribute('cy', pt.y);
+    if (k < 1) requestAnimationFrame(step);
+    else { c.remove(); live--; hit(e.to); }
+  };
+  requestAnimationFrame(step);
+}
+
+// ---------------------------------------------------------------- state
+const secs = (ms) => (ms == null ? '–' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`);
+function fmtUp(ms) {
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : m ? `${m}m ${s % 60}s` : `${s}s`;
+}
+let state = null;
+function applyState(s) {
+  state = s;
+  drawDiagram(s);
+  $('title').replaceChildren(`Lab node ${s.node} `, Object.assign(document.createElement('span'), { textContent: `· ${s.mode === 'hw' ? 'real board' : 'simulation'}` }));
+  const conn = $('conn');
+  conn.className = 'conn ' + s.connection;
+  conn.textContent = s.connection === 'paired' ? 'connected to the platform' : s.connection;
+  const meta = $('meta');
+  meta.replaceChildren();
+  const add = (k, v) => {
+    const span = document.createElement('span');
+    span.append(k + ' ', Object.assign(document.createElement('b'), { textContent: v }));
+    meta.append(span);
+  };
+  add('platform', s.platform.replace(/^wss?:\/\//, '').replace(/\/ws\/node$/, ''));
+  add('examiner', `${s.examiner.id} · ${s.examiner.kind === 'esp32' ? 'silicon' : 'sim'}${s.examiner.fingerprint ? ' · ' + s.examiner.fingerprint.slice(0, 9) + '…' : ''}`);
+  if (s.refusal) add('refused', s.refusal.slice(0, 80));
+  $('s-up').textContent = fmtUp(s.now - s.started);
+  $('s-jobs').textContent = s.jobs.length;
+  $('s-pass').textContent = s.jobs.filter((j) => j.result === 'pass').length;
+  const done = s.jobs.filter((j) => j.total);
+  $('s-avg').textContent = done.length ? secs(Math.round(done.reduce((a, j) => a + j.total, 0) / done.length)) : '–';
+
+  boxes.platform.s.textContent = fit(s.platform.replace(/^wss?:\/\//, ''), boxes.platform.w, 6.9);
+  boxes.platform.v.textContent = s.connection === 'paired' ? `paired ${fmtUp(s.now - s.since)} ago` : s.connection;
+  boxes.agent.s.textContent = fit(`${s.node} · ${s.mode}`, boxes.agent.w, 6.9);
+  boxes.agent.v.textContent = s.examiner.counter != null ? `counter ${s.examiner.counter}` : 'no verdict signed yet';
+  const j = s.job;
+  for (const p of s.pipeline) {
+    const b = boxes[p.id];
+    const step = j?.steps.find((x, i) => j.steps[i - 1]?.at === p.id);
+    const here = j && !j.result && j.at === p.id;
+    b.g.classList.toggle('here', !!here);
+    b.v.textContent = here ? 'working…' : step ? secs(step.ms) : '';
+  }
+  boxes.agent.g.classList.toggle('here', !!(j && !j.result && j.at === 'agent'));
+  renderJob(j);
+  renderJobs(s.jobs);
+}
+
+function renderJob(j) {
+  const host = $('job');
+  if (!j) return;
+  host.replaceChildren();
+  const card = document.createElement('div');
+  card.className = 'job';
+  const top = document.createElement('div');
+  top.className = 'top';
+  const id = Object.assign(document.createElement('span'), { className: 'id', textContent: j.attempt });
+  const sub = Object.assign(document.createElement('span'), { className: 'sub', textContent: `${j.challenge} · nonce ${j.nonce} · ${j.bytes} bytes of Verilog` });
+  const res = Object.assign(document.createElement('span'), {
+    className: 'res ' + (j.result ?? 'run'),
+    textContent: j.result ? `${j.result.toUpperCase()} · ${secs(j.total)}` : `running · ${secs(Date.now() - j.received)}`,
+  });
+  top.append(id, sub, res);
+  const steps = document.createElement('div');
+  steps.className = 'steps';
+  let from = 'agent';
+  for (const s of j.steps) {
+    steps.append(
+      Object.assign(document.createElement('span'), { className: 'ms', textContent: secs(s.ms) }),
+      Object.assign(document.createElement('span'), { className: 'hop', textContent: `${from} → ${s.at}` }),
+      Object.assign(document.createElement('span'), { className: 'lb', textContent: s.label }),
+    );
+    from = s.at;
+  }
+  card.append(top, steps);
+  if (j.error) card.append(Object.assign(document.createElement('div'), { className: 'sub', textContent: j.error, style: 'color:var(--bad);margin-top:8px' }));
+  host.append(card);
+}
+
+function renderJobs(list) {
+  const t = $('jobs');
+  t.hidden = !list.length;
+  const body = t.tBodies[0];
+  body.replaceChildren();
+  for (const j of list) {
+    const tr = document.createElement('tr');
+    for (const [v, cls] of [[j.attempt], [j.challenge], [(j.result ?? '').toUpperCase()], [secs(j.total), 'num'], [j.counter ?? '–', 'num'], [new Date(j.received).toLocaleTimeString('en-GB', { hour12: false })]]) {
+      const td = document.createElement('td');
+      td.textContent = v;
+      if (cls) td.className = cls;
+      tr.append(td);
+    }
+    body.append(tr);
+  }
+}
+
+function addLine(e) {
+  const term = $('term');
+  const d = document.createElement('div');
+  const tool = /^\[([\w-]+)\]/.exec(e.label)?.[1] ?? '';
+  d.className = tool.startsWith('nextpnr') ? 'yosys' : tool;
+  d.textContent = e.label;
+  term.append(d);
+  while (term.children.length > 300) term.firstChild.remove();
+  const wrap = $('termwrap');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function onEvent(e, fresh) {
+  if (e.kind === 'log') addLine(e);
+  if (fresh) fire(e);
+}
+
+setInterval(() => {
+  if (!state) return;
+  state.now += 1000;
+  $('s-up').textContent = fmtUp(state.now - state.started);
+  if (state.job && !state.job.result) renderJob(state.job);
+}, 1000);
+
+const src = new EventSource('events');
+src.addEventListener('snapshot', (m) => {
+  const { events, state: s } = JSON.parse(m.data);
+  applyState(s);
+  $('term').replaceChildren();
+  for (const e of events) onEvent(e, false);
+});
+src.addEventListener('state', (m) => applyState(JSON.parse(m.data)));
+src.addEventListener('node', (m) => {
+  const e = JSON.parse(m.data);
+  onEvent(e, true);
+  if (['stage', 'job', 'verdict', 'error'].includes(e.kind)) fetch('state').then((r) => r.json()).then(applyState, () => {});
+});
+src.addEventListener('error', () => {
+  $('conn').className = 'conn disconnected';
+  $('conn').textContent = 'dashboard reconnecting';
+});
+</script>
+</body>
+</html>

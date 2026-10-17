@@ -36,5 +36,7 @@ export const config = {
   pcf: arg('pcf') ?? process.env.CCL_PCF ?? path.join(REPO_DIR, 'rtl', 'boards', 'icebreaker.pcf'),
   keysDir,
   workDir: process.env.CCL_WORK_DIR ?? path.join(LABNODE_DIR, '.work'),
+  // The node's own dashboard (src/dashboard.ts); 0 leaves it off
+  dashboardPort: Number(arg('dashboard-port') ?? process.env.CCL_DASHBOARD_PORT ?? 0),
   info: process.argv.includes('--info'),
 };

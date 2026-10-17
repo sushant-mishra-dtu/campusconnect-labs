@@ -16,6 +16,8 @@ services:
       # The seeded people are fictional; demo sign-in lets judges switch personas without passwords.
       # Set CCL_DEMO_LOGIN=0 once real accounts are on it.
       CCL_DEMO_LOGIN: "${CCL_DEMO_LOGIN:-1}"
+      # The live data-flow dashboard at /flow
+      CCL_FLOW_DASHBOARD: "${CCL_FLOW_DASHBOARD:-1}"
     volumes:
       - platform-data:/data
       - node-token:/handoff
@@ -35,6 +37,10 @@ services:
       # The platform's first start seeds the demo data and leaves this node's token here
       CCL_NODE_TOKEN_FILE: /handoff/iiitd-01.token
       CCL_MODE: sim
+      # The node's own dashboard
+      CCL_DASHBOARD_PORT: "4100"
+    ports:
+      - "${CCL_NODE_DASHBOARD_PORT:-4100}:4100"
     volumes:
       - labnode-keys:/keys
       - node-token:/handoff:ro

@@ -27,5 +27,7 @@ RUN mkdir -p /keys && chown node:node /keys && usermod -aG dialout,plugdev node
 ENV NODE_ENV=production CCL_KEYS_DIR=/keys CCL_WORK_DIR=/tmp/ccl-work
 USER node
 VOLUME ["/keys"]
+# The node's dashboard, when CCL_DASHBOARD_PORT=4100
+EXPOSE 4100
 WORKDIR /app/labnode
 ENTRYPOINT ["node", "--disable-warning=ExperimentalWarning", "--import", "tsx", "src/agent.ts"]
