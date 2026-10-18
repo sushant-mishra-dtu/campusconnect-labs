@@ -184,7 +184,7 @@ export interface Stats {
 
 // ------------------------------------------------------------------ client
 
-const TOKEN_KEY = 'ccl.token';
+const TOKEN_KEY = 'crtl.token';
 
 export function getToken(): string | null {
   try {

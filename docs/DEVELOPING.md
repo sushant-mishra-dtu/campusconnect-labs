@@ -1,4 +1,4 @@
-# Running and developing CampusConnect Labs
+# Running and developing C-RTL
 
 ## Run it
 
@@ -15,7 +15,7 @@ npm run labnode    # in a second terminal: a sim lab node for "Robotics Club ben
 
 `npm run seed` generates a new token for the demo lab node every time, prints it, and saves it to `labnode/keys/iiitd-01.token` (gitignored), where `npm run labnode` finds it. No token is committed.
 
-Open http://localhost:5173 and pick a person. The seeded people are fictional and sign in without a password while **demo sign-in** is on; accounts you create need their password. Demo sign-in is off when `NODE_ENV=production` or `CCL_DEMO_LOGIN=0`; turn it off for any public deploy.
+Open http://localhost:5173 and pick a person. The seeded people are fictional and sign in without a password while **demo sign-in** is on; accounts you create need their password. Demo sign-in is off when `NODE_ENV=production` or `CRTL_DEMO_LOGIN=0`; turn it off for any public deploy.
 
 | Command | What it does |
 |---|---|

@@ -12,8 +12,8 @@ node_ts() {
 
 case "${1:-serve}" in
   serve)
-    if [ ! -f "$CCL_DB" ] && [ "${CCL_SEED_ON_FIRST_START:-1}" = 1 ]; then
-      echo "[entrypoint] no database at $CCL_DB yet, seeding the demo data"
+    if [ ! -f "$CRTL_DB" ] && [ "${CRTL_SEED_ON_FIRST_START:-1}" = 1 ]; then
+      echo "[entrypoint] no database at $CRTL_DB yet, seeding the demo data"
       node_ts src/seed.ts
     fi
     exec node --disable-warning=ExperimentalWarning --import tsx src/index.ts

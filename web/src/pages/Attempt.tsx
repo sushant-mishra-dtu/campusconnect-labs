@@ -25,7 +25,7 @@ import { useLive, useLiveRefresh } from '../live';
 type MyBooking = Booking & { node: LabNode };
 
 function draftKey(id: string) {
-  return `ccl.draft.${id}`;
+  return `crtl.draft.${id}`;
 }
 
 function loadDraft(id: string) {

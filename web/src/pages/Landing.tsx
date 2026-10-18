@@ -71,7 +71,7 @@ export function Landing() {
           </Card>
           <Card className="border-proof/40 p-5 shadow-[0_1px_0_0_rgba(21,122,76,0.15)]">
             <div className="flex items-center justify-between">
-              <div className="text-[11px] font-semibold tracking-wider text-proof uppercase">A connection on CampusConnect Labs</div>
+              <div className="text-[11px] font-semibold tracking-wider text-proof uppercase">A connection on C-RTL</div>
               <ChipIcon className="h-4 w-4 text-proof" />
             </div>
             <dl className="mt-3 grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1.5 text-sm">

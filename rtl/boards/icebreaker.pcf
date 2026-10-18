@@ -1,4 +1,4 @@
-# CampusConnect Labs harness on an iCEBreaker (iCE40UP5K-SG48).
+# C-RTL harness on an iCEBreaker (iCE40UP5K-SG48).
 # Package pins follow the iCEBreaker v1.0 reference pcf; check them against your
 # board revision before flashing. All examiner wiring goes through the PMOD headers
 # (3.3 V on both sides, so wire straight to the ESP32-S3 with a common ground).

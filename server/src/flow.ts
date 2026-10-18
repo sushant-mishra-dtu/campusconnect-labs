@@ -1,11 +1,11 @@
 // A live trace of what moves through the platform, for the flow dashboard at /flow: HTTP
 // requests, database reads and writes, socket traffic with lab nodes and browser tabs, verdict
 // checks and pushes. The last 500 events stay in memory. Events carry ids, names and stages,
-// never tokens, passwords or student code. Off unless CCL_FLOW_DASHBOARD=1.
+// never tokens, passwords or student code. Off unless CRTL_FLOW_DASHBOARD=1.
 import { EventEmitter } from 'node:events';
 import type { NextFunction, Request, Response } from 'express';
 
-export const FLOW_ENABLED = process.env.CCL_FLOW_DASHBOARD === '1';
+export const FLOW_ENABLED = process.env.CRTL_FLOW_DASHBOARD === '1';
 
 export type FlowKind = 'http' | 'db' | 'socket' | 'job' | 'stage' | 'log' | 'verdict' | 'check' | 'push' | 'error';
 

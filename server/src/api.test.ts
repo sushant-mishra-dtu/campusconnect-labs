@@ -9,9 +9,9 @@ import path from 'node:path';
 import { after, test } from 'node:test';
 import express, { type NextFunction, type Request, type Response } from 'express';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccl-api-test-'));
-process.env.CCL_DB = path.join(tmp, 'test.db');
-delete process.env.CCL_DEMO_LOGIN;
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'crtl-api-test-'));
+process.env.CRTL_DB = path.join(tmp, 'test.db');
+delete process.env.CRTL_DEMO_LOGIN;
 delete process.env.NODE_ENV;
 
 const { run } = await import('./db.js');
@@ -21,7 +21,7 @@ const { nodeSockets } = await import('./presence.js');
 const { HttpError } = await import('./util.js');
 
 run("INSERT INTO colleges (id, name, city, has_lab) VALUES ('c', 'C', 'X', 1)");
-run("INSERT INTO users (id, name, email, role, is_demo, created_at) VALUES ('d', 'Demo', 'demo@demo.ccl', 'student', 1, 0), ('o', 'Owner', 'o@x', 'club', 0, 0)");
+run("INSERT INTO users (id, name, email, role, is_demo, created_at) VALUES ('d', 'Demo', 'demo@demo.c-rtl', 'student', 1, 0), ('o', 'Owner', 'o@x', 'club', 0, 0)");
 for (const id of ['n1', 'n2', 'n3']) {
   run("INSERT INTO nodes (id, name, college_id, owner_id, board, token_hash, created_at) VALUES (?, ?, 'c', 'o', 'b', 'h', 0)", id, id);
 }
@@ -60,13 +60,13 @@ test('sign-up needs a password, and signing in needs it too', async () => {
 
 test('demo sign-in covers only the seeded demo people', async () => {
   const list = await call('/auth/demo-users');
-  assert.deepEqual((list.data as unknown as { email: string }[]).map((u) => u.email), ['demo@demo.ccl']);
-  assert.equal((await call('/auth/login', { email: 'demo@demo.ccl' })).status, 200);
+  assert.deepEqual((list.data as unknown as { email: string }[]).map((u) => u.email), ['demo@demo.c-rtl']);
+  assert.equal((await call('/auth/login', { email: 'demo@demo.c-rtl' })).status, 200);
   assert.equal((await call('/auth/login', { email: 'o@x' })).status, 401);
 });
 
 test('one upcoming slot per board, two overall, and no instant slot on an offline board', async () => {
-  const { data } = await call('/auth/login', { email: 'demo@demo.ccl' });
+  const { data } = await call('/auth/login', { email: 'demo@demo.c-rtl' });
   const tok = data.token!;
   const hour = 60 * 60_000;
   const later = Math.ceil((Date.now() + 2 * hour) / 60_000) * 60_000;

@@ -47,6 +47,7 @@ bool generateKey() {
 namespace signer {
 
 bool begin() {
+  // "ccl" is from the project's old name; renaming the NVS namespace would orphan the stored key
   prefs.begin("ccl", false);
   mbedtls_entropy_init(&entropy);
   mbedtls_ctr_drbg_init(&drbg);

@@ -25,8 +25,8 @@ COPY rtl/challenges rtl/challenges
 COPY --from=web /app/web/dist web/dist
 RUN chmod +x server/docker-entrypoint.sh && mkdir -p /data /handoff && chown node:node /data /handoff
 
-# CCL_KEYS_DIR is where the seed leaves the demo node's token for the lab node container
-ENV NODE_ENV=production PORT=4000 CCL_DB=/data/ccl.db CCL_KEYS_DIR=/handoff
+# CRTL_KEYS_DIR is where the seed leaves the demo node's token for the lab node container
+ENV NODE_ENV=production PORT=4000 CRTL_DB=/data/c-rtl.db CRTL_KEYS_DIR=/handoff
 USER node
 VOLUME ["/data", "/handoff"]
 EXPOSE 4000

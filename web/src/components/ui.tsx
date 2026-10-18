@@ -309,7 +309,7 @@ export function Logo() {
         </g>
       </svg>
       <span className="text-[15px] leading-none font-semibold tracking-tight">
-        CampusConnect <span className="text-proof">Labs</span>
+        C-<span className="text-proof">RTL</span>
       </span>
     </span>
   );

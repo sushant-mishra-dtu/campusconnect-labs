@@ -11,8 +11,8 @@ import path from 'node:path';
 import { after, test } from 'node:test';
 import { WebSocket } from 'ws';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccl-hub-test-'));
-process.env.CCL_DB = path.join(tmp, 'test.db');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'crtl-hub-test-'));
+process.env.CRTL_DB = path.join(tmp, 'test.db');
 
 const { all, enforceEnrollment, one, run } = await import('./db.js');
 const { attachHub } = await import('./hub.js');

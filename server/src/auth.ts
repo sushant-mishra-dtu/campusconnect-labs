@@ -14,9 +14,9 @@ declare global {
 
 // Demo sign-in lets the seeded, fictional people sign in without a password so judges can
 // switch personas. Real accounts always need their password. On by default for local
-// runs; off when NODE_ENV=production or CCL_DEMO_LOGIN=0.
-export const DEMO_LOGIN = process.env.CCL_DEMO_LOGIN
-  ? process.env.CCL_DEMO_LOGIN === '1'
+// runs; off when NODE_ENV=production or CRTL_DEMO_LOGIN=0.
+export const DEMO_LOGIN = process.env.CRTL_DEMO_LOGIN
+  ? process.env.CRTL_DEMO_LOGIN === '1'
   : process.env.NODE_ENV !== 'production';
 
 const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 32 };

@@ -1,4 +1,4 @@
-// CampusConnect Labs lab node agent.
+// C-RTL lab node agent.
 // Connects out to the platform (so a college firewall is fine), takes one job at a time,
 // builds and flashes the student's design, and relays the examiner's signed verdict.
 import { spawnSync } from 'node:child_process';
@@ -106,7 +106,7 @@ if (config.mode === 'sim' && config.simTarget !== 'bitstream' && config.simTarge
 }
 console.log(`[node] ${config.node} · mode ${config.mode}${config.mode === 'sim' ? ` · no FPGA, simulating the ${config.simTarget}` : ''}`);
 if (!config.token && !config.info) {
-  console.error(`[node] no token for ${config.node}: pass --token=, set CCL_NODE_TOKEN, or run \`npm run seed\` for the demo node`);
+  console.error(`[node] no token for ${config.node}: pass --token=, set CRTL_NODE_TOKEN, or run \`npm run seed\` for the demo node`);
   process.exit(1);
 }
 console.log(`[node] examiner ${examiner.identity.id} (${examiner.identity.kind})`);
@@ -134,10 +134,10 @@ if (config.mode === 'sim') {
 }
 // The bitstream readback runs icebox_vlog, a Python 3 script (see src/bitstream-readback.mjs)
 if (config.mode === 'sim' && config.simTarget === 'bitstream') {
-  const python = process.env.CCL_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
+  const python = process.env.CRTL_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
   const r = spawnSync(python, ['--version'], { encoding: 'utf8', timeout: 5000 });
   if (r.error || r.status !== 0 || !/Python 3/.test(`${r.stdout}${r.stderr}`)) {
-    console.error(`[node] simulating the bitstream needs Python 3 for icebox_vlog; "${python}" didn't run. Install it, set CCL_PYTHON, or use --sim-target=netlist`);
+    console.error(`[node] simulating the bitstream needs Python 3 for icebox_vlog; "${python}" didn't run. Install it, set CRTL_PYTHON, or use --sim-target=netlist`);
     process.exit(1);
   }
 }

@@ -10,7 +10,7 @@
 // student wrote (names, attributes, $display) survives into readback.v. nextpnr and icepack
 // are the YoWASP WebAssembly builds, so like yosys they see only the files handed to them.
 // icebox_vlog (Project IceStorm, vendored under labnode/vendor/icebox) needs Python 3:
-// set CCL_PYTHON if it isn't `python` on Windows or `python3` elsewhere.
+// set CRTL_PYTHON if it isn't `python` on Windows or `python3` elsewhere.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -83,7 +83,7 @@ export function nonAnsiPorts(verilog) {
 }
 
 function python() {
-  return process.env.CCL_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
+  return process.env.CRTL_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
 }
 
 async function main() {
@@ -118,7 +118,7 @@ async function main() {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (r.error) fail(`could not run ${python()} for icebox_vlog (${r.error.message}); install Python 3 or set CCL_PYTHON`);
+  if (r.error) fail(`could not run ${python()} for icebox_vlog (${r.error.message}); install Python 3 or set CRTL_PYTHON`);
   if (r.status !== 0) fail(`icebox_vlog failed: ${(r.stderr ?? '').trim().split(/\r?\n/).pop()}`);
   fs.writeFileSync(path.join(dir, 'readback.v'), nonAnsiPorts(r.stdout));
   fs.writeFileSync(path.join(dir, 'cells_sim.v'), iceCellModels());

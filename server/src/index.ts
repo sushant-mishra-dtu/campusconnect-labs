@@ -22,17 +22,17 @@ if (!one('SELECT 1 FROM users LIMIT 1')) {
 const app = express();
 app.disable('x-powered-by');
 // Behind a reverse proxy every request arrives from the proxy's address, so all users would share
-// one sign-in, booking and attempt limit. CCL_TRUST_PROXY names the proxy (a hop count, or
+// one sign-in, booking and attempt limit. CRTL_TRUST_PROXY names the proxy (a hop count, or
 // addresses such as "loopback, uniquelocal") so req.ip comes from X-Forwarded-For. Leave it unset
 // when browsers connect directly, or anyone could pick their own address with a header.
-const trustProxy = process.env.CCL_TRUST_PROXY;
+const trustProxy = process.env.CRTL_TRUST_PROXY;
 if (trustProxy) app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
 app.use(express.json({ limit: '256kb' }));
 app.use(optionalAuth);
 app.use(traceHttp);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
-// The flow dashboard (/flow) and its data, when CCL_FLOW_DASHBOARD=1
+// The flow dashboard (/flow) and its data, when CRTL_FLOW_DASHBOARD=1
 app.use(flow);
 app.use('/api', api);
 app.use('/api', attempts);
@@ -58,7 +58,7 @@ attachHub(server);
 failOrphanedAttempts();
 
 server.listen(PORT, () => {
-  console.log(`[server] CampusConnect Labs API on http://localhost:${PORT}`);
+  console.log(`[server] C-RTL API on http://localhost:${PORT}`);
   console.log(`[server] lab nodes connect to ws://localhost:${PORT}/ws/node`);
 });
 

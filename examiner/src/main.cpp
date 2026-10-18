@@ -1,4 +1,4 @@
-// CampusConnect Labs examiner firmware (ESP32-S3).
+// C-RTL examiner firmware (ESP32-S3).
 //
 // Talks line-delimited JSON over USB CDC to the lab node agent:
 //   -> {"cmd":"info"}

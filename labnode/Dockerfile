@@ -29,10 +29,10 @@ COPY rtl/boards rtl/boards
 # the node after a restart (the pinned key would no longer match)
 RUN mkdir -p /keys && chown node:node /keys && usermod -aG dialout,plugdev node
 
-ENV NODE_ENV=production CCL_KEYS_DIR=/keys CCL_WORK_DIR=/tmp/ccl-work
+ENV NODE_ENV=production CRTL_KEYS_DIR=/keys CRTL_WORK_DIR=/tmp/crtl-work
 USER node
 VOLUME ["/keys"]
-# The node's dashboard, when CCL_DASHBOARD_PORT=4100
+# The node's dashboard, when CRTL_DASHBOARD_PORT=4100
 EXPOSE 4100
 WORKDIR /app/labnode
 ENTRYPOINT ["node", "--disable-warning=ExperimentalWarning", "--import", "tsx", "src/agent.ts"]

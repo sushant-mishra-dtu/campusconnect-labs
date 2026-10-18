@@ -24,7 +24,7 @@ function probe(tool: string): Runner | null {
 }
 
 function distroArgs() {
-  return process.env.CCL_WSL_DISTRO ? ['-d', process.env.CCL_WSL_DISTRO] : [];
+  return process.env.CRTL_WSL_DISTRO ? ['-d', process.env.CRTL_WSL_DISTRO] : [];
 }
 
 export function toolAvailable(tool: string) {

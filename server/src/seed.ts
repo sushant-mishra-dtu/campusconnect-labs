@@ -52,16 +52,16 @@ for (const c of colleges) run('INSERT INTO colleges (id, name, city, has_lab) VA
 // ---------- people ----------
 type Seed = [id: string, name: string, email: string, role: string, headline: string, college: string | null, org: string | null, claims: string[], hue: number];
 const users: Seed[] = [
-  ['u_aarav', 'Aarav Sharma', 'aarav@demo.ccl', 'student', '3rd-year ECE · no FPGA lab on campus', 'sunrise', null, ['Verilog', 'FPGA', 'Embedded C'], 24],
-  ['u_diya', 'Diya Menon', 'diya@demo.ccl', 'student', '2nd-year EEE · robotics and motor control', 'narmada', null, ['VHDL', 'Digital design', 'MATLAB'], 320],
-  ['u_kabir', 'Kabir Singh', 'kabir@demo.ccl', 'student', 'Final-year ECE · wants to do ASIC verification', 'dtu', null, ['SystemVerilog', 'UVM', 'Python'], 200],
-  ['u_tanya', 'Tanya Rao', 'tanya@demo.ccl', 'student', '3rd-year CSE · RISC-V on the side', 'iiitd', null, ['Verilog', 'RISC-V', 'C++'], 160],
-  ['u_farhan', 'Farhan Ali', 'farhan@demo.ccl', 'student', '3rd-year ECE · builds with Arduino', 'sunrise', null, ['Arduino', 'Verilog', 'PCB design'], 45],
-  ['u_meera', 'Meera Iyer', 'meera@demo.ccl', 'alum', 'FPGA engineer · DTU class of 2019', 'dtu', 'Siliconvale Semiconductors', ['FPGA', 'Timing closure', 'PCIe'], 280],
-  ['u_rohan', 'Rohan Gupta', 'rohan@demo.ccl', 'founder', 'Founder · IIIT Delhi class of 2017', 'iiitd', 'Tessellate Robotics', ['Robotics', 'Embedded', 'Startups'], 140],
-  ['u_kavya', 'Kavya Nair', 'kavya@demo.ccl', 'recruiter', 'University recruiting, digital design', null, 'ChipForge Systems', ['Hiring', 'Campus programs'], 350],
-  ['u_ishaan', 'Ishaan Verma', 'ishaan@demo.ccl', 'club', 'Lead, Robotics Club', 'iiitd', 'Robotics Club, IIIT Delhi', [], 100],
-  ['u_neha', 'Neha Bansal', 'neha@demo.ccl', 'club', 'Chair, IEEE Student Branch', 'dtu', 'IEEE Student Branch, DTU', [], 60],
+  ['u_aarav', 'Aarav Sharma', 'aarav@demo.c-rtl', 'student', '3rd-year ECE · no FPGA lab on campus', 'sunrise', null, ['Verilog', 'FPGA', 'Embedded C'], 24],
+  ['u_diya', 'Diya Menon', 'diya@demo.c-rtl', 'student', '2nd-year EEE · robotics and motor control', 'narmada', null, ['VHDL', 'Digital design', 'MATLAB'], 320],
+  ['u_kabir', 'Kabir Singh', 'kabir@demo.c-rtl', 'student', 'Final-year ECE · wants to do ASIC verification', 'dtu', null, ['SystemVerilog', 'UVM', 'Python'], 200],
+  ['u_tanya', 'Tanya Rao', 'tanya@demo.c-rtl', 'student', '3rd-year CSE · RISC-V on the side', 'iiitd', null, ['Verilog', 'RISC-V', 'C++'], 160],
+  ['u_farhan', 'Farhan Ali', 'farhan@demo.c-rtl', 'student', '3rd-year ECE · builds with Arduino', 'sunrise', null, ['Arduino', 'Verilog', 'PCB design'], 45],
+  ['u_meera', 'Meera Iyer', 'meera@demo.c-rtl', 'alum', 'FPGA engineer · DTU class of 2019', 'dtu', 'Siliconvale Semiconductors', ['FPGA', 'Timing closure', 'PCIe'], 280],
+  ['u_rohan', 'Rohan Gupta', 'rohan@demo.c-rtl', 'founder', 'Founder · IIIT Delhi class of 2017', 'iiitd', 'Tessellate Robotics', ['Robotics', 'Embedded', 'Startups'], 140],
+  ['u_kavya', 'Kavya Nair', 'kavya@demo.c-rtl', 'recruiter', 'University recruiting, digital design', null, 'ChipForge Systems', ['Hiring', 'Campus programs'], 350],
+  ['u_ishaan', 'Ishaan Verma', 'ishaan@demo.c-rtl', 'club', 'Lead, Robotics Club', 'iiitd', 'Robotics Club, IIIT Delhi', [], 100],
+  ['u_neha', 'Neha Bansal', 'neha@demo.c-rtl', 'club', 'Chair, IEEE Student Branch', 'dtu', 'IEEE Student Branch, DTU', [], 60],
 ];
 // is_demo: these fictional people can sign in without a password while demo sign-in is on.
 for (const u of users) {
@@ -199,7 +199,7 @@ db.exec('COMMIT');
 console.log(`Seeded ${users.length} people, ${challenges.length} challenges, ${TESTS.size} tests, 2 lab nodes, ${counter} historical proofs`);
 console.log(`Database: ${DB_PATH}`);
 
-const tokenFile = path.join(process.env.CCL_KEYS_DIR ?? path.join(REPO_DIR, 'labnode', 'keys'), 'iiitd-01.token');
+const tokenFile = path.join(process.env.CRTL_KEYS_DIR ?? path.join(REPO_DIR, 'labnode', 'keys'), 'iiitd-01.token');
 fs.mkdirSync(path.dirname(tokenFile), { recursive: true });
 fs.writeFileSync(tokenFile, liveToken + '\n', { mode: 0o600 });
 console.log(`Lab node token for iiitd-01 (new every seed): ${liveToken}`);

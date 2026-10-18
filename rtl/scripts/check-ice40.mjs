@@ -18,7 +18,7 @@ const challengesDir = path.resolve(here, '..', 'challenges');
 const pcfPath = path.resolve(here, '..', 'boards', 'icebreaker.pcf');
 const sandbox = path.resolve(here, '..', '..', 'labnode', 'src', 'yosys-sandbox.mjs');
 const only = process.argv.slice(2).find((a) => !a.startsWith('--'));
-const distro = process.env.CCL_WSL_DISTRO ? ['-d', process.env.CCL_WSL_DISTRO] : [];
+const distro = process.env.CRTL_WSL_DISTRO ? ['-d', process.env.CRTL_WSL_DISTRO] : [];
 
 function probe(tool) {
   const native = spawnSync(tool, ['-V'], { encoding: 'utf8', input: '' });
@@ -86,7 +86,7 @@ async function run(tool, args, work) {
 }
 
 async function buildOne(id, file) {
-  const work = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), `ccl-ice40-${id}-`));
+  const work = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), `crtl-ice40-${id}-`));
   fs.copyFileSync(path.join(challengesDir, id, file), path.join(work, 'dut.v'));
   fs.copyFileSync(pcfPath, path.join(work, 'board.pcf'));
   const t0 = Date.now();

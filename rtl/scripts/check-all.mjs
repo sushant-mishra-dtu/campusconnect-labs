@@ -36,12 +36,12 @@ if (!native && process.platform !== 'win32') {
 
 function tool(cwd, cmd, toolArgs) {
   if (native) return spawnSync(cmd, toolArgs, { cwd, encoding: 'utf8' });
-  const distro = process.env.CCL_WSL_DISTRO ? ['-d', process.env.CCL_WSL_DISTRO] : [];
+  const distro = process.env.CRTL_WSL_DISTRO ? ['-d', process.env.CRTL_WSL_DISTRO] : [];
   return spawnSync('wsl.exe', [...distro, '--cd', cwd, '-e', cmd, ...toolArgs], { encoding: 'utf8' });
 }
 
 function runOne(id, file) {
-  const work = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), `ccl-${id}-`));
+  const work = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), `crtl-${id}-`));
   fs.copyFileSync(path.join(challengesDir, id, 'tb.v'), path.join(work, 'tb.v'));
   fs.copyFileSync(path.join(challengesDir, id, file), path.join(work, 'dut.v'));
   const t0 = Date.now();

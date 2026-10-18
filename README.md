@@ -1,4 +1,4 @@
-# CampusConnect Labs
+# C-RTL
 
 **HackShift 2026 · Theme 1: Alumni Network & Professional Connections**
 *Building a network, not a directory.*

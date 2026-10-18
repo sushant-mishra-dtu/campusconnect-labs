@@ -6,8 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccl-test-'));
-process.env.CCL_DB = path.join(tmp, 'test.db');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'crtl-test-'));
+process.env.CRTL_DB = path.join(tmp, 'test.db');
 
 const { run, one } = await import('./db.js');
 const { checkVerdict } = await import('./verdict.js');

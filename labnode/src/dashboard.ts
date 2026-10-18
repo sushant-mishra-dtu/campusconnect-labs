@@ -1,4 +1,4 @@
-// This lab node's own dashboard, on CCL_DASHBOARD_PORT: the platform connection, each job going
+// This lab node's own dashboard, on CRTL_DASHBOARD_PORT: the platform connection, each job going
 // through the pipeline with timings, and tool output, live. The page is at /, its data at /state
 // (a snapshot) and /events (server-sent events). Off unless the port is set.
 import fs from 'node:fs';

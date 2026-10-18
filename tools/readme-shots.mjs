@@ -39,8 +39,8 @@ async function signIn(ctx, p, email, draft) {
   const { token } = await r.json();
   await p.goto(`${PLATFORM}/about`);
   await p.evaluate(([t, code]) => {
-    localStorage.setItem('ccl.token', t);
-    if (code) localStorage.setItem('ccl.draft.c_uart', code);
+    localStorage.setItem('crtl.token', t);
+    if (code) localStorage.setItem('crtl.draft.c_uart', code);
   }, [token, draft]);
 }
 
@@ -54,7 +54,7 @@ await shot(landing, '01-landing');
 // 2-4. Aarav: his gap, the challenge, the boards he can borrow
 const student = await context();
 const app = await page(student, 'student app');
-await signIn(student, app, 'aarav@demo.ccl', reference);
+await signIn(student, app, 'aarav@demo.c-rtl', reference);
 await app.goto(`${PLATFORM}/`);
 await app.getByText('Your gap').first().waitFor();
 await app.waitForTimeout(800);
@@ -98,7 +98,7 @@ const attemptId = /attempt ([0-9a-f]{8})/.exec(footer)[1];
 // 12-13. Meera gets the proof and sends the referral; Aarav's profile now shows both
 const author = await context();
 const inbox = await page(author, 'author app');
-await signIn(author, inbox, 'meera@demo.ccl');
+await signIn(author, inbox, 'meera@demo.c-rtl');
 await inbox.goto(`${PLATFORM}/`);
 const section = inbox.getByText('Proofs addressed to you');
 await section.waitFor();

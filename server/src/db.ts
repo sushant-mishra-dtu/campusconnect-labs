@@ -182,7 +182,7 @@ function ensureColumn(table: string, column: string, ddl: string) {
 }
 ensureColumn('users', 'password_hash', 'TEXT');
 if (ensureColumn('users', 'is_demo', 'INTEGER NOT NULL DEFAULT 0')) {
-  db.exec("UPDATE users SET is_demo = 1 WHERE email LIKE '%@demo.ccl'");
+  db.exec("UPDATE users SET is_demo = 1 WHERE email LIKE '%@demo.c-rtl'");
 }
 ensureColumn('nodes', 'pin_open_until', 'INTEGER');
 

@@ -14,7 +14,7 @@ const PLATFORM = process.env.PLATFORM ?? 'http://127.0.0.1:4000';
 const REMOTE_NODE = process.env.REMOTE_NODE ?? 'http://127.0.0.1:4101'; // the node the attempt runs on
 const LOCAL_NODE = process.env.LOCAL_NODE ?? 'http://127.0.0.1:4100'; // another node's dashboard, idle
 const NODE_ID = process.env.NODE_ID ?? 'iiitd-02';
-const STUDENT = process.env.STUDENT ?? 'diya@demo.ccl';
+const STUDENT = process.env.STUDENT ?? 'diya@demo.c-rtl';
 const OUT = process.env.OUT ?? '/work/shots';
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
@@ -57,8 +57,8 @@ const app = await ctx.newPage();
 watch(app, 'web app');
 await app.goto(`${PLATFORM}/about`);
 await app.evaluate(([t, code]) => {
-  localStorage.setItem('ccl.token', t);
-  localStorage.setItem('ccl.draft.c_uart', code);
+  localStorage.setItem('crtl.token', t);
+  localStorage.setItem('crtl.draft.c_uart', code);
 }, [token, reference]);
 await app.goto(`${PLATFORM}/challenges/c_uart/attempt`);
 await app.waitForSelector('select');

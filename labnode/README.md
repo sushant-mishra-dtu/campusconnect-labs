@@ -19,19 +19,19 @@ npm run labnode -- --info            # print the examiner id and public key
 | Signed `target` | `bitstream` (`netlist` with `--sim-target=netlist`) | `fpga` |
 | Shown on the platform as | Simulated, no physical FPGA | Verified on silicon (the operator enrolls the ESP32's key first) |
 
-yosys (`@yowasp/yosys`) and, in sim mode, nextpnr-ice40 and icepack (`@yowasp/nextpnr-ice40`) come from npm as WebAssembly. `icebox_vlog` is vendored in `vendor/icebox` and needs Python 3 (`CCL_PYTHON` if it isn't `python` on Windows or `python3` elsewhere). iverilog and the `hw` tools run natively, or inside WSL on Windows when they are not on `PATH`. Set `CCL_WSL_DISTRO` to pick a distro. [docs/SIMULATION.md](../docs/SIMULATION.md) covers what the simulation does and doesn't model.
+yosys (`@yowasp/yosys`) and, in sim mode, nextpnr-ice40 and icepack (`@yowasp/nextpnr-ice40`) come from npm as WebAssembly. `icebox_vlog` is vendored in `vendor/icebox` and needs Python 3 (`CRTL_PYTHON` if it isn't `python` on Windows or `python3` elsewhere). iverilog and the `hw` tools run natively, or inside WSL on Windows when they are not on `PATH`. Set `CRTL_WSL_DISTRO` to pick a distro. [docs/SIMULATION.md](../docs/SIMULATION.md) covers what the simulation does and doesn't model.
 
 ## Configuration
 
 | Flag | Env | Default |
 |---|---|---|
-| `--server=` | `CCL_SERVER` | `ws://localhost:4000/ws/node` |
-| `--node=` | `CCL_NODE` | `iiitd-01` |
-| `--token=` | `CCL_NODE_TOKEN` | contents of the file `CCL_NODE_TOKEN_FILE` names, else of `keys/<node>.token` (written by `npm run seed`); no built-in token |
-| `--mode=` | `CCL_MODE` | `sim` |
-| `--sim-target=` | `CCL_SIM_TARGET` | `bitstream` (or `netlist`: skip place and route, simulate yosys's netlist) |
-| `--serial=` | `CCL_SERIAL` | none (required for `hw`, e.g. `COM5` or `/dev/ttyACM0`) |
-| `--pcf=` | `CCL_PCF` | `rtl/boards/icebreaker.pcf` |
+| `--server=` | `CRTL_SERVER` | `ws://localhost:4000/ws/node` |
+| `--node=` | `CRTL_NODE` | `iiitd-01` |
+| `--token=` | `CRTL_NODE_TOKEN` | contents of the file `CRTL_NODE_TOKEN_FILE` names, else of `keys/<node>.token` (written by `npm run seed`); no built-in token |
+| `--mode=` | `CRTL_MODE` | `sim` |
+| `--sim-target=` | `CRTL_SIM_TARGET` | `bitstream` (or `netlist`: skip place and route, simulate yosys's netlist) |
+| `--serial=` | `CRTL_SERIAL` | none (required for `hw`, e.g. `COM5` or `/dev/ttyACM0`) |
+| `--pcf=` | `CRTL_PCF` | `rtl/boards/icebreaker.pcf` |
 
 Sim mode needs Icarus Verilog 12 or newer; the agent refuses to start on an older one. To run the node in Docker, see [docs/DEPLOY.md](../docs/DEPLOY.md).
 

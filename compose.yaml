@@ -1,7 +1,7 @@
 # The platform plus one simulation lab node on the same machine, for the demo.
 #   docker compose up -d --build
 # A college runs only the lab node, on its own machine: see labnode/compose.yaml.
-name: campusconnect-labs
+name: c-rtl
 
 services:
   platform:
@@ -11,13 +11,13 @@ services:
     init: true
     restart: unless-stopped
     ports:
-      - "${CCL_PORT:-4000}:4000"
+      - "${CRTL_PORT:-4000}:4000"
     environment:
       # The seeded people are fictional; demo sign-in lets judges switch personas without passwords.
-      # Set CCL_DEMO_LOGIN=0 once real accounts are on it.
-      CCL_DEMO_LOGIN: "${CCL_DEMO_LOGIN:-1}"
+      # Set CRTL_DEMO_LOGIN=0 once real accounts are on it.
+      CRTL_DEMO_LOGIN: "${CRTL_DEMO_LOGIN:-1}"
       # The live data-flow dashboard at /flow
-      CCL_FLOW_DASHBOARD: "${CCL_FLOW_DASHBOARD:-1}"
+      CRTL_FLOW_DASHBOARD: "${CRTL_FLOW_DASHBOARD:-1}"
     volumes:
       - platform-data:/data
       - node-token:/handoff
@@ -32,15 +32,15 @@ services:
       platform:
         condition: service_healthy
     environment:
-      CCL_SERVER: ws://platform:4000/ws/node
-      CCL_NODE: iiitd-01
+      CRTL_SERVER: ws://platform:4000/ws/node
+      CRTL_NODE: iiitd-01
       # The platform's first start seeds the demo data and leaves this node's token here
-      CCL_NODE_TOKEN_FILE: /handoff/iiitd-01.token
-      CCL_MODE: sim
+      CRTL_NODE_TOKEN_FILE: /handoff/iiitd-01.token
+      CRTL_MODE: sim
       # The node's own dashboard
-      CCL_DASHBOARD_PORT: "4100"
+      CRTL_DASHBOARD_PORT: "4100"
     ports:
-      - "${CCL_NODE_DASHBOARD_PORT:-4100}:4100"
+      - "${CRTL_NODE_DASHBOARD_PORT:-4100}:4100"
     volumes:
       - labnode-keys:/keys
       - node-token:/handoff:ro
